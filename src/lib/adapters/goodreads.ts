@@ -10,8 +10,8 @@ export class GoodreadsAdapter implements IBookAdapter {
   ) {}
 
   async getBooks(): Promise<BookData[]> {
-    const shelfQ = this.shelf ? `?shelf=${encodeURIComponent(this.shelf)}` : '';
-    const proxyShelfQ = this.shelf ? `&shelf=${encodeURIComponent(this.shelf)}` : '';
+    const shelfQ = this.shelf ? `?shelf=${encodeURIComponent(this.shelf)}&per_page=300` : '?per_page=300';
+    const proxyShelfQ = this.shelf ? `&shelf=${encodeURIComponent(this.shelf)}&per_page=300` : '&per_page=300';
     const directUrl = `https://www.goodreads.com/review/list_rss/${this.userId}${shelfQ}`;
     const proxyUrl = `${PROXY_URL}/rss?userId=${this.userId}${proxyShelfQ}`;
 

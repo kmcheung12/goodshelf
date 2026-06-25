@@ -63,7 +63,7 @@ export function makeSpineTexture(title: string, author: string, color: string): 
   ctx.save();
   ctx.translate(TITLE_LANE_X, TEXT_START_Y);
   ctx.rotate(-Math.PI / 2);
-  ctx.font = `bold 15px "Helvetica Neue", Helvetica, Arial, sans-serif`;
+  ctx.font = `bold 22px "Helvetica Neue", Helvetica, Arial, sans-serif`;
   ctx.fillStyle = ink;
   ctx.textAlign = 'left';
   ctx.textBaseline = 'middle';
