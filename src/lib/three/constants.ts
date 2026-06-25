@@ -69,6 +69,7 @@ export const POINT_DECAY = 1.8;
 
 // Book mesh
 export const BOOK_HOVER_OFFSET = 0.04;   // metres forward on hover
+export const BOOK_HOVER_LERP = 0.12;    // lerp factor per frame toward hover target
 export const SPINE_CANVAS_W = 76;         // px
 export const SPINE_CANVAS_H = 540;        // px
 export const SPINE_ROUGHNESS = 0.55;
