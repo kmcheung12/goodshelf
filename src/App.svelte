@@ -9,25 +9,26 @@
   let entered = false;
   let loading = false;
   let error = '';
+  let userId = '';
   let readBooks: BookData[] = [];
   let toReadBooks: BookData[] = [];
   let currentlyReadingBooks: BookData[] = [];
   let selectedBook: BookData | null = null;
 
-  async function handleEnter(userId: string) {
+  async function handleEnter(id: string) {
     loading = true;
     error = '';
-    // Reflect the user ID in the URL so the link is shareable
-    history.replaceState(null, '', `/${userId}`);
+    history.replaceState(null, '', `/${id}`);
     try {
       const [read, toRead, currentlyReading] = await Promise.all([
-        new GoodreadsAdapter(userId, 'read').getBooks(),
-        new GoodreadsAdapter(userId, 'to-read').getBooks(),
-        new GoodreadsAdapter(userId, 'currently-reading').getBooks(),
+        new GoodreadsAdapter(id, 'read').getBooks(),
+        new GoodreadsAdapter(id, 'to-read').getBooks(),
+        new GoodreadsAdapter(id, 'currently-reading').getBooks(),
       ]);
       readBooks = read;
       toReadBooks = toRead;
       currentlyReadingBooks = currentlyReading;
+      userId = id;
       entered = true;
     } catch (e) {
       error = e instanceof Error ? e.message : 'Failed to load shelf';
@@ -37,7 +38,6 @@
   }
 
   onMount(() => {
-    // Auto-load if URL is /{numeric-id}
     const match = window.location.pathname.match(/^\/(\d+)\/?$/);
     if (match) handleEnter(match[1]);
   });
@@ -48,8 +48,12 @@
   {toReadBooks}
   {currentlyReadingBooks}
   onBookSelect={(book) => selectedBook = book}
+  onWallEnter={handleEnter}
+  wallLoading={loading}
+  currentUserId={userId}
 />
 
+<!-- Intro overlay only shown before first load; wall panel handles subsequent changes -->
 {#if !entered}
   <Intro onEnter={handleEnter} />
   {#if loading}

@@ -48,4 +48,10 @@ export function buildRoom(scene: THREE.Scene): void {
   ceiling.position.set(0, H + T / 2, 0);
   ceiling.receiveShadow = true;
   scene.add(ceiling);
+
+  // Fourth wall (entrance, +Z face)
+  const frontWall = new THREE.Mesh(new THREE.BoxGeometry(W, H, T), wallMat);
+  frontWall.position.set(0, H / 2, ROOM_HALF_D);
+  frontWall.receiveShadow = true;
+  scene.add(frontWall);
 }

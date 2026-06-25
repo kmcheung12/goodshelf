@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
 import { buildRoom } from './room';
 import { buildShelves } from './shelves';
 import { buildLighting } from './lighting';
@@ -9,10 +10,13 @@ import {
   CAM_START_X, CAM_START_Y, CAM_START_Z, CAM_FOV,
   CAM_NEAR, CAM_FAR, COLOR_SCENE_BG, TONE_MAPPING_EXPOSURE,
   BOOK_HOVER_OFFSET, BOOK_HOVER_LERP, DRAG_THRESHOLD_PX,
+  ROOM_HALF_D,
 } from './constants';
 
 export interface SceneHandle {
   controls: Controls;
+  wallPanelElement: HTMLElement;
+  overlayElement: HTMLElement;
   setBooks(readBooks: BookData[], toReadBooks: BookData[], currentlyReadingBooks: BookData[]): void;
   dispose(): void;
 }
@@ -30,6 +34,12 @@ export function initScene(
   renderer.toneMappingExposure = TONE_MAPPING_EXPOSURE;
   renderer.outputColorSpace = THREE.SRGBColorSpace;
 
+  // CSS2D renderer — overlays HTML elements in 3D space
+  const css2d = new CSS2DRenderer();
+  css2d.setSize(window.innerWidth, window.innerHeight);
+  css2d.domElement.style.cssText =
+    'position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;';
+
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(COLOR_SCENE_BG);
 
@@ -40,24 +50,28 @@ export function initScene(
   buildShelves(scene);
   buildLighting(scene);
 
+  // Fourth-wall panel — HTML element anchored to the entrance wall in 3D
+  const wallPanelEl = document.createElement('div');
+  wallPanelEl.style.pointerEvents = 'auto';
+  const wallPanelObj = new CSS2DObject(wallPanelEl);
+  wallPanelObj.position.set(0, CAM_START_Y, ROOM_HALF_D - 0.02);
+  scene.add(wallPanelObj);
+
   const controls = new Controls(camera);
   controls.attach(canvas);
 
-  // Book group — replaced on each setBooks() call
   let bookGroup: THREE.Group | null = null;
 
-  // Raycaster for crosshair hover (screen centre = NDC 0,0)
   const raycaster = new THREE.Raycaster();
   const centre = new THREE.Vector2(0, 0);
 
-  // Click handler: fire on pointerup with no movement (not a drag)
   let pointerDownAt = { x: 0, y: 0 };
   const onPointerDown = (e: PointerEvent) => { pointerDownAt = { x: e.clientX, y: e.clientY }; };
   const onPointerUp = (e: PointerEvent) => {
     if (!controls.isLocked) return;
     const dx = e.clientX - pointerDownAt.x;
     const dy = e.clientY - pointerDownAt.y;
-    if (Math.sqrt(dx * dx + dy * dy) > DRAG_THRESHOLD_PX) return; // was a drag, not a click
+    if (Math.sqrt(dx * dx + dy * dy) > DRAG_THRESHOLD_PX) return;
 
     if (!bookGroup) { onBookSelect?.(null); return; }
     raycaster.setFromCamera(centre, camera);
@@ -76,6 +90,7 @@ export function initScene(
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
+    css2d.setSize(window.innerWidth, window.innerHeight);
   };
   window.addEventListener('resize', onResize);
 
@@ -87,7 +102,6 @@ export function initScene(
     raf = requestAnimationFrame(animate);
     controls.update();
 
-    // Hover animation: lerp books toward/away from BOOK_HOVER_OFFSET
     if (bookGroup && controls.isLocked) {
       raycaster.setFromCamera(centre, camera);
       const hits = raycaster.intersectObjects(bookGroup.children, true);
@@ -112,12 +126,15 @@ export function initScene(
     }
 
     renderer.render(scene, camera);
+    css2d.render(scene, camera);
   };
   animate();
 
   return {
     controls,
-    setBooks(readBooks: BookData[], toReadBooks: BookData[], currentlyReadingBooks: BookData[]) {
+    wallPanelElement: wallPanelEl,
+    overlayElement: css2d.domElement,
+    setBooks(readBooks, toReadBooks, currentlyReadingBooks) {
       if (bookGroup) {
         scene.remove(bookGroup);
         bookGroup.traverse((obj) => {
