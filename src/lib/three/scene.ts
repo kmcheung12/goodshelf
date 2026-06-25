@@ -63,9 +63,7 @@ export function initScene(
     raycaster.setFromCamera(centre, camera);
     const hits = raycaster.intersectObjects(bookGroup.children, true);
     if (hits.length > 0) {
-      const mesh = hits[0].object instanceof THREE.Mesh
-        ? hits[0].object
-        : hits[0].object.parent as THREE.Mesh;
+      const mesh = hits[0].object as THREE.Mesh;
       onBookSelect?.(mesh.userData.bookData ?? null);
     } else {
       onBookSelect?.(null);
@@ -103,7 +101,7 @@ export function initScene(
         const rotY = mesh.userData.baseRotY as number;
         const isHovered = child === hoveredMesh;
 
-        _hoverForward.set(Math.sin(rotY), 0, Math.cos(rotY));
+        _hoverForward.set(-Math.sin(rotY), 0, Math.cos(rotY));
         if (isHovered) {
           _hoverTarget.copy(base).addScaledVector(_hoverForward, BOOK_HOVER_OFFSET);
           mesh.position.lerp(_hoverTarget, BOOK_HOVER_LERP);
