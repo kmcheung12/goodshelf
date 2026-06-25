@@ -19,7 +19,6 @@ function luminance(hex: string): number {
   );
 }
 
-// Sample average RGB from a loaded image element (4×4 downscale)
 function dominantRGB(img: HTMLImageElement): [number, number, number] | null {
   try {
     const c = document.createElement('canvas');
@@ -32,15 +31,11 @@ function dominantRGB(img: HTMLImageElement): [number, number, number] | null {
     for (let i = 0; i < data.length; i += 4) { r += data[i]; g += data[i + 1]; b += data[i + 2]; }
     return [Math.round(r / n), Math.round(g / n), Math.round(b / n)];
   } catch {
-    return null; // CORS blocked — graceful fallback
+    return null;
   }
 }
 
-export function makeSpineTexture(
-  title: string,
-  author: string,
-  color: string
-): THREE.CanvasTexture {
+export function makeSpineTexture(title: string, author: string, color: string): THREE.CanvasTexture {
   const W = SPINE_CANVAS_W;
   const H = SPINE_CANVAS_H;
   const canvas = document.createElement('canvas');
@@ -88,6 +83,20 @@ export function makeSpineTexture(
   return new THREE.CanvasTexture(canvas);
 }
 
+// Single shared geometry for all book meshes — same dimensions, no reason to duplicate.
+// BoxGeometry default groups: [+X, -X, +Y, -Y, +Z(spine), -Z(cover)]
+// Groups 0-3 (sides) are consecutive in the index buffer (indices 0-23), so merge into one
+// group. This cuts draw calls per book from 6 → 3.
+const SHARED_BOOK_GEO: THREE.BufferGeometry = (() => {
+  const geo = new THREE.BoxGeometry(SPINE_THICKNESS, CASE_HEIGHT, CASE_DEPTH);
+  geo.groups = [
+    { start: 0, count: 24, materialIndex: 0 },  // sides (+X -X +Y -Y merged)
+    { start: 24, count: 6, materialIndex: 1 },   // +Z spine
+    { start: 30, count: 6, materialIndex: 2 },   // -Z cover
+  ];
+  return geo;
+})();
+
 const loader = new THREE.TextureLoader();
 loader.crossOrigin = 'anonymous';
 
@@ -100,51 +109,42 @@ export function createBookMesh(book: BookData, index: number): THREE.Mesh {
     roughness: SPINE_ROUGHNESS,
     metalness: SPINE_METALNESS,
   });
-
   const spineMat = new THREE.MeshStandardMaterial({
     map: spineTex,
     roughness: SPINE_ROUGHNESS,
     metalness: SPINE_METALNESS,
   });
-
   const coverMat = new THREE.MeshStandardMaterial({
     color: initialColor,
     roughness: SPINE_ROUGHNESS,
     metalness: SPINE_METALNESS,
   });
 
-  // BoxGeometry face order: +X, -X, +Y, -Y, +Z (spine), -Z (cover)
-  const materials = [sideMat, sideMat, sideMat, sideMat, spineMat, coverMat];
-
-  const geo = new THREE.BoxGeometry(SPINE_THICKNESS, CASE_HEIGHT, CASE_DEPTH);
-  const mesh = new THREE.Mesh(geo, materials);
-  mesh.castShadow = true;
-  mesh.receiveShadow = true;
+  // 3 materials matching the 3 merged groups: sides | spine | cover
+  const mesh = new THREE.Mesh(SHARED_BOOK_GEO, [sideMat, spineMat, coverMat]);
+  // Books don't cast meaningful shadows (thin, on shelves) — skipping saves the largest
+  // chunk of per-frame draw calls (shadow cubemap passes for point lights).
+  mesh.castShadow = false;
+  mesh.receiveShadow = false;
   mesh.userData.bookData = book;
 
   if (book.coverUrl) {
     loader.load(book.coverUrl, (tex) => {
       tex.colorSpace = THREE.SRGBColorSpace;
 
-      // Extract dominant color from cover to tint the spine
       const rgb = dominantRGB(tex.image as HTMLImageElement);
       if (rgb) {
         const [r, g, b] = rgb;
         const cssColor = `rgb(${r},${g},${b})`;
-
-        // Regenerate spine texture with cover-derived color
         const oldTex = spineTex;
         spineTex = makeSpineTexture(book.title, book.author, cssColor);
         spineMat.map = spineTex;
         spineMat.needsUpdate = true;
         oldTex.dispose();
-
-        // Update side/top/bottom faces to match
         sideMat.color.set(cssColor);
         sideMat.needsUpdate = true;
       }
 
-      // Apply cover image to the -Z face
       coverMat.map = tex;
       coverMat.color.set(0xffffff);
       coverMat.needsUpdate = true;

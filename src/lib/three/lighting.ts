@@ -42,8 +42,8 @@ export function buildLighting(scene: THREE.Scene): void {
   for (const [x, y, z] of lampPositions) {
     const pt = new THREE.PointLight(POINT_COLOR, POINT_INTENSITY, 0, POINT_DECAY);
     pt.position.set(x, y, z);
-    pt.castShadow = true;
-    pt.shadow.mapSize.set(512, 512);
+    // castShadow omitted: each point light needs a 6-face cubemap shadow pass per frame,
+    // multiplying draw calls by 6×. The directional key light handles all shadow detail.
     scene.add(pt);
   }
 }
