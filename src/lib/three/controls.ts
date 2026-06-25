@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import {
   LOOK_SENSITIVITY, PITCH_LIMIT, MOVE_SPEED,
   CAM_XMIN, CAM_XMAX, CAM_ZMIN, CAM_ZMAX,
-  CAM_FOV_MIN, CAM_FOV_MAX,
+  CAM_FOV_MIN, CAM_FOV_MAX, SCROLL_ZOOM_SPEED,
 } from './constants';
 
 export class Controls {
@@ -62,7 +62,7 @@ export class Controls {
 
   private onWheel = (e: WheelEvent) => {
     e.preventDefault();
-    const fov = this.camera.fov + e.deltaY * 0.05;
+    const fov = this.camera.fov + e.deltaY * SCROLL_ZOOM_SPEED;
     this.camera.fov = Math.max(CAM_FOV_MIN, Math.min(CAM_FOV_MAX, fov));
     this.camera.updateProjectionMatrix();
   };

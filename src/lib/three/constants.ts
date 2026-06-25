@@ -19,6 +19,7 @@ export const CAM_ZMAX = 0.77;
 export const LOOK_SENSITIVITY = 0.0022;
 export const PITCH_LIMIT = 1.48;          // radians
 export const MOVE_SPEED = 0.008;
+export const SCROLL_ZOOM_SPEED = 0.05;
 
 // Shelves
 export const SHELF_ROWS = 10;
