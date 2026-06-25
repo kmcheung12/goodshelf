@@ -8,15 +8,23 @@
   let entered = false;
   let loading = false;
   let error = '';
-  let books: BookData[] = [];
+  let readBooks: BookData[] = [];
+  let toReadBooks: BookData[] = [];
+  let currentlyReadingBooks: BookData[] = [];
   let selectedBook: BookData | null = null;
 
   async function handleEnter(userId: string) {
     loading = true;
     error = '';
     try {
-      const adapter = new GoodreadsAdapter(userId);
-      books = await adapter.getBooks();
+      const [read, toRead, currentlyReading] = await Promise.all([
+        new GoodreadsAdapter(userId, 'read').getBooks(),
+        new GoodreadsAdapter(userId, 'to-read').getBooks(),
+        new GoodreadsAdapter(userId, 'currently-reading').getBooks(),
+      ]);
+      readBooks = read;
+      toReadBooks = toRead;
+      currentlyReadingBooks = currentlyReading;
       entered = true;
     } catch (e) {
       error = e instanceof Error ? e.message : 'Failed to load shelf';
@@ -24,13 +32,14 @@
       loading = false;
     }
   }
-
-  function handleBookSelect(book: BookData | null) {
-    selectedBook = book;
-  }
 </script>
 
-<ShelfScene {books} onBookSelect={handleBookSelect} />
+<ShelfScene
+  {readBooks}
+  {toReadBooks}
+  {currentlyReadingBooks}
+  onBookSelect={(book) => selectedBook = book}
+/>
 
 {#if !entered}
   <Intro onEnter={handleEnter} />

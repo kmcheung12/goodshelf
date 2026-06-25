@@ -4,11 +4,16 @@ import { parseGoodreadsRSS } from './rss-parser';
 const PROXY_URL = import.meta.env.VITE_PROXY_URL ?? 'http://localhost:3001';
 
 export class GoodreadsAdapter implements IBookAdapter {
-  constructor(private readonly userId: string) {}
+  constructor(
+    private readonly userId: string,
+    private readonly shelf?: string,
+  ) {}
 
   async getBooks(): Promise<BookData[]> {
-    const directUrl = `https://www.goodreads.com/review/list_rss/${this.userId}`;
-    const proxyUrl = `${PROXY_URL}/rss?userId=${this.userId}`;
+    const shelfQ = this.shelf ? `?shelf=${encodeURIComponent(this.shelf)}` : '';
+    const proxyShelfQ = this.shelf ? `&shelf=${encodeURIComponent(this.shelf)}` : '';
+    const directUrl = `https://www.goodreads.com/review/list_rss/${this.userId}${shelfQ}`;
+    const proxyUrl = `${PROXY_URL}/rss?userId=${this.userId}${proxyShelfQ}`;
 
     let xml: string;
 

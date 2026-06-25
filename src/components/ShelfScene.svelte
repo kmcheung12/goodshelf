@@ -4,7 +4,9 @@
   import type { BookData } from '../lib/adapters/types';
   import Crosshair from './Crosshair.svelte';
 
-  export let books: BookData[] = [];
+  export let readBooks: BookData[] = [];
+  export let toReadBooks: BookData[] = [];
+  export let currentlyReadingBooks: BookData[] = [];
   export let onBookSelect: (book: BookData | null) => void = () => {};
 
   let canvas: HTMLCanvasElement;
@@ -17,8 +19,10 @@
     return () => clearInterval(interval);
   });
 
-  // Reactive: push new books into the scene whenever the prop changes
-  $: if (handle && books.length > 0) handle.setBooks(books);
+  // Push books into the scene once any shelf arrives
+  $: if (handle && (readBooks.length > 0 || toReadBooks.length > 0 || currentlyReadingBooks.length > 0)) {
+    handle.setBooks(readBooks, toReadBooks, currentlyReadingBooks);
+  }
 
   onDestroy(() => handle?.dispose());
 </script>

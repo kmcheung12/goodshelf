@@ -13,7 +13,7 @@ import {
 
 export interface SceneHandle {
   controls: Controls;
-  setBooks(books: BookData[]): void;
+  setBooks(readBooks: BookData[], toReadBooks: BookData[], currentlyReadingBooks: BookData[]): void;
   dispose(): void;
 }
 
@@ -117,7 +117,7 @@ export function initScene(
 
   return {
     controls,
-    setBooks(books: BookData[]) {
+    setBooks(readBooks: BookData[], toReadBooks: BookData[], currentlyReadingBooks: BookData[]) {
       if (bookGroup) {
         scene.remove(bookGroup);
         bookGroup.traverse((obj) => {
@@ -128,7 +128,7 @@ export function initScene(
           }
         });
       }
-      bookGroup = placeBooks(scene, books);
+      bookGroup = placeBooks(scene, readBooks, toReadBooks, currentlyReadingBooks);
     },
     dispose() {
       cancelAnimationFrame(raf);
