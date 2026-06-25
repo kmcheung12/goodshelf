@@ -11,10 +11,21 @@ import {
 
 type Slot = { x: number; y: number; z: number; rotY: number };
 
+// Row fill order: middle outward → [4,5,3,6,2,7,1,8,0,9] for 10 rows
+function rowFillOrder(total: number): number[] {
+  const mid = Math.floor(total / 2);
+  const order: number[] = [];
+  for (let i = 0; i < total; i++) {
+    const r = i % 2 === 0 ? mid - Math.floor(i / 2) : mid + Math.ceil(i / 2);
+    if (r >= 0 && r < total) order.push(r);
+  }
+  return order;
+}
+
 function buildSlots(): Slot[] {
   const slots: Slot[] = [];
 
-  for (let r = 0; r < SHELF_ROWS; r++) {
+  for (const r of rowFillOrder(SHELF_ROWS)) {
     const y = SHELF_Y0 + r * SHELF_DY + SHELF_PLANK_THICKNESS + CASE_HEIGHT / 2;
     const baseZ = -ROOM_HALF_D + CASE_DEPTH / 2;
     const sideX_L = -ROOM_HALF_W + CASE_DEPTH / 2;
