@@ -5,6 +5,7 @@ import { buildLighting } from './lighting';
 import { Controls } from './controls';
 import {
   CAM_START_X, CAM_START_Y, CAM_START_Z, CAM_FOV,
+  CAM_NEAR, CAM_FAR, COLOR_SCENE_BG, TONE_MAPPING_EXPOSURE,
 } from './constants';
 
 export interface SceneHandle {
@@ -16,23 +17,23 @@ export function initScene(canvas: HTMLCanvasElement): SceneHandle {
   // Renderer
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-  renderer.setSize(canvas.clientWidth, canvas.clientHeight);
+  renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.0;
+  renderer.toneMappingExposure = TONE_MAPPING_EXPOSURE;
   renderer.outputColorSpace = THREE.SRGBColorSpace;
 
   // Scene
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color('#0b0b0d');
+  scene.background = new THREE.Color(COLOR_SCENE_BG);
 
   // Camera
   const camera = new THREE.PerspectiveCamera(
     CAM_FOV,
-    canvas.clientWidth / canvas.clientHeight,
-    0.01,
-    20
+    window.innerWidth / window.innerHeight,
+    CAM_NEAR,
+    CAM_FAR
   );
   camera.position.set(CAM_START_X, CAM_START_Y, CAM_START_Z);
 

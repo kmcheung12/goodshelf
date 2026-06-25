@@ -15,6 +15,7 @@ export class Controls {
   private readonly _euler = new THREE.Euler(0, 0, 0, 'YXZ');
   private readonly _yawEuler = new THREE.Euler(0, 0, 0, 'YXZ');
   private readonly _quat = new THREE.Quaternion();
+  private readonly _dir = new THREE.Vector3();
 
   constructor(private camera: THREE.PerspectiveCamera) {}
 
@@ -74,19 +75,19 @@ export class Controls {
 
     // WASD movement in camera-local XZ
     if (!this.isLocked) return;
-    const dir = new THREE.Vector3();
-    if (this.keys.has('KeyW') || this.keys.has('ArrowUp'))    dir.z -= 1;
-    if (this.keys.has('KeyS') || this.keys.has('ArrowDown'))  dir.z += 1;
-    if (this.keys.has('KeyA') || this.keys.has('ArrowLeft'))  dir.x -= 1;
-    if (this.keys.has('KeyD') || this.keys.has('ArrowRight')) dir.x += 1;
-    if (dir.lengthSq() === 0) return;
+    this._dir.set(0, 0, 0);
+    if (this.keys.has('KeyW') || this.keys.has('ArrowUp'))    this._dir.z -= 1;
+    if (this.keys.has('KeyS') || this.keys.has('ArrowDown'))  this._dir.z += 1;
+    if (this.keys.has('KeyA') || this.keys.has('ArrowLeft'))  this._dir.x -= 1;
+    if (this.keys.has('KeyD') || this.keys.has('ArrowRight')) this._dir.x += 1;
+    if (this._dir.lengthSq() === 0) return;
 
-    dir.normalize().multiplyScalar(MOVE_SPEED);
+    this._dir.normalize().multiplyScalar(MOVE_SPEED);
     this._yawEuler.set(0, this.yaw, 0);
-    dir.applyQuaternion(this._quat.setFromEuler(this._yawEuler));
+    this._dir.applyQuaternion(this._quat.setFromEuler(this._yawEuler));
 
     const p = this.camera.position;
-    p.x = Math.max(CAM_XMIN, Math.min(CAM_XMAX, p.x + dir.x));
-    p.z = Math.max(CAM_ZMIN, Math.min(CAM_ZMAX, p.z + dir.z));
+    p.x = Math.max(CAM_XMIN, Math.min(CAM_XMAX, p.x + this._dir.x));
+    p.z = Math.max(CAM_ZMIN, Math.min(CAM_ZMAX, p.z + this._dir.z));
   }
 }

@@ -16,6 +16,8 @@ export function buildShelves(scene: THREE.Scene): void {
   const W = ROOM_HALF_W * 2;
   const T = SHELF_PLANK_THICKNESS;
 
+  const sideLen = ROOM_HALF_D * 2 - CORNER_GAP;
+
   for (let r = 0; r < SHELF_ROWS; r++) {
     // Y = bottom surface of plank; books sit on top
     const y = SHELF_Y0 + r * SHELF_DY + T / 2;
@@ -31,7 +33,6 @@ export function buildShelves(scene: THREE.Scene): void {
     scene.add(backPlank);
 
     // Left wall shelf — runs from entrance to CORNER_GAP before back wall
-    const sideLen = ROOM_HALF_D * 2 - CORNER_GAP;
     const leftPlank = new THREE.Mesh(
       new THREE.BoxGeometry(CASE_DEPTH, T, sideLen),
       mat
