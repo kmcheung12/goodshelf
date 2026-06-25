@@ -38,7 +38,8 @@ function buildBackWallSlots(): Slot[] {
 function buildSideWallSlots(side: 'left' | 'right'): Slot[] {
   const slots: Slot[] = [];
   const sideX = side === 'left' ? -ROOM_HALF_W + CASE_DEPTH / 2 : ROOM_HALF_W - CASE_DEPTH / 2;
-  const rotY = side === 'left' ? -Math.PI / 2 : Math.PI / 2;
+  // left wall spine faces +X (toward viewer), right wall spine faces -X
+  const rotY = side === 'left' ? Math.PI / 2 : -Math.PI / 2;
   const sideZ0 = -ROOM_HALF_D + CORNER_GAP + WALL_THICKNESS / 2 + SPINE_THICKNESS / 2;
   for (const r of rowFillOrder(SHELF_ROWS)) {
     const y = SHELF_Y0 + r * SHELF_DY + SHELF_PLANK_THICKNESS + CASE_HEIGHT / 2;

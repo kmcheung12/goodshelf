@@ -115,7 +115,7 @@ export function initScene(
         const rotY = mesh.userData.baseRotY as number;
         const isHovered = child === hoveredMesh;
 
-        _hoverForward.set(-Math.sin(rotY), 0, Math.cos(rotY));
+        _hoverForward.set(Math.sin(rotY), 0, Math.cos(rotY));
         if (isHovered) {
           _hoverTarget.copy(base).addScaledVector(_hoverForward, BOOK_HOVER_OFFSET);
           mesh.position.lerp(_hoverTarget, BOOK_HOVER_LERP);
