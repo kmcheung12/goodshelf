@@ -8,7 +8,7 @@ import type { BookData } from '../adapters/types';
 import {
   CAM_START_X, CAM_START_Y, CAM_START_Z, CAM_FOV,
   CAM_NEAR, CAM_FAR, COLOR_SCENE_BG, TONE_MAPPING_EXPOSURE,
-  BOOK_HOVER_OFFSET, BOOK_HOVER_LERP,
+  BOOK_HOVER_OFFSET, BOOK_HOVER_LERP, DRAG_THRESHOLD_PX,
 } from './constants';
 
 export interface SceneHandle {
@@ -57,7 +57,7 @@ export function initScene(
     if (!controls.isLocked) return;
     const dx = e.clientX - pointerDownAt.x;
     const dy = e.clientY - pointerDownAt.y;
-    if (Math.sqrt(dx * dx + dy * dy) > 4) return; // was a drag, not a click
+    if (Math.sqrt(dx * dx + dy * dy) > DRAG_THRESHOLD_PX) return; // was a drag, not a click
 
     if (!bookGroup) { onBookSelect?.(null); return; }
     raycaster.setFromCamera(centre, camera);
@@ -81,6 +81,9 @@ export function initScene(
   };
   window.addEventListener('resize', onResize);
 
+  const _hoverForward = new THREE.Vector3();
+  const _hoverTarget = new THREE.Vector3();
+
   let raf = 0;
   const animate = () => {
     raf = requestAnimationFrame(animate);
@@ -90,22 +93,23 @@ export function initScene(
     if (bookGroup && controls.isLocked) {
       raycaster.setFromCamera(centre, camera);
       const hits = raycaster.intersectObjects(bookGroup.children, true);
-      const hoveredMesh: THREE.Object3D | null = hits.length > 0
-        ? (hits[0].object.parent instanceof THREE.Group ? hits[0].object : hits[0].object)
+      const hoveredMesh: THREE.Mesh | null = hits.length > 0
+        ? hits[0].object as THREE.Mesh
         : null;
 
       for (const child of bookGroup.children) {
         const mesh = child as THREE.Mesh;
         const base = mesh.userData.basePos as THREE.Vector3;
         const rotY = mesh.userData.baseRotY as number;
-        const isHovered = child === hoveredMesh || child.children.includes(hoveredMesh as THREE.Object3D);
+        const isHovered = child === hoveredMesh;
 
-        const forward = new THREE.Vector3(Math.sin(rotY), 0, Math.cos(rotY));
-        const target = isHovered
-          ? base.clone().add(forward.multiplyScalar(BOOK_HOVER_OFFSET))
-          : base.clone();
-
-        mesh.position.lerp(target, BOOK_HOVER_LERP);
+        _hoverForward.set(Math.sin(rotY), 0, Math.cos(rotY));
+        if (isHovered) {
+          _hoverTarget.copy(base).addScaledVector(_hoverForward, BOOK_HOVER_OFFSET);
+          mesh.position.lerp(_hoverTarget, BOOK_HOVER_LERP);
+        } else {
+          mesh.position.lerp(base, BOOK_HOVER_LERP);
+        }
       }
     }
 
