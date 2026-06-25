@@ -7,6 +7,7 @@ import {
   CASE_HEIGHT, CASE_DEPTH, SPINE_THICKNESS,
   WALL_THICKNESS, CORNER_GAP,
   SHELF_BACK_BOOKS_PER_ROW, SHELF_SIDE_BOOKS_PER_ROW,
+  BOOK_DEPTH_VARIATION,
 } from './constants';
 
 type Slot = { x: number; y: number; z: number; rotY: number };
@@ -59,11 +60,19 @@ function addBooksToGroup(
   const count = Math.min(books.length, slots.length);
   for (let i = 0; i < count; i++) {
     const slot = slots[i];
+
+    // Deterministic pseudo-random depth offset — gives the shelf a lived-in look
+    const depth = Math.sin((colorOffset + i) * 2.7 + 1.3) * BOOK_DEPTH_VARIATION;
+    // Depth axis: +Z for back wall (rotY≈0), ±X for side walls
+    const sx = slot.x + (slot.rotY > 0.1 ? depth : slot.rotY < -0.1 ? -depth : 0);
+    const sz = slot.z + (Math.abs(slot.rotY) < 0.1 ? depth : 0);
+
     const mesh = createBookMesh(books[i], colorOffset + i);
-    mesh.position.set(slot.x, slot.y, slot.z);
+    mesh.position.set(sx, slot.y, sz);
     mesh.rotation.y = slot.rotY;
-    mesh.userData.basePos = new THREE.Vector3(slot.x, slot.y, slot.z);
+    mesh.userData.basePos = new THREE.Vector3(sx, slot.y, sz);
     mesh.userData.baseRotY = slot.rotY;
+    mesh.userData.baseQuat = mesh.quaternion.clone(); // saved for inspect-exit rotation restore
     group.add(mesh);
   }
 }

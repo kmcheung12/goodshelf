@@ -69,8 +69,16 @@ export const POINT_DECAY = 1.8;
 
 // Book mesh
 export const BOOK_HOVER_OFFSET = 0.04;   // metres forward on hover
-export const BOOK_HOVER_LERP = 0.12;    // lerp factor per frame toward hover target
-export const DRAG_THRESHOLD_PX = 4;     // px movement before pointerup is treated as drag
+export const BOOK_HOVER_LERP = 0.12;
+export const DRAG_THRESHOLD_PX = 4;
+export const BOOK_DEPTH_VARIATION = 0.012; // ±metres random depth variation on shelf
+
+// Book inspect (fly-out) mode
+export const INSPECT_DISTANCE = 0.42;    // metres held in front of camera
+export const INSPECT_TILT_X = 0.28;     // max pitch tilt from mouse (radians)
+export const INSPECT_TILT_Y = 0.38;     // max yaw tilt from mouse (radians)
+export const INSPECT_POS_LERP = 0.10;
+export const INSPECT_ROT_LERP = 0.10;
 export const SPINE_CANVAS_W = 76;         // px
 export const SPINE_CANVAS_H = 540;        // px
 export const SPINE_ROUGHNESS = 0.55;

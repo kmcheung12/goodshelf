@@ -18,21 +18,20 @@
   let wrapper: HTMLDivElement;
   let handle: SceneHandle;
   let locked = false;
+  let inspecting = false;
 
   onMount(() => {
-    handle = initScene(canvas, onBookSelect);
+    handle = initScene(
+      canvas,
+      onBookSelect,
+      (v) => { inspecting = v; },
+    );
 
-    // Attach CSS2D overlay element to wrapper (sits above canvas, pointer-events:none on container)
     wrapper.appendChild(handle.overlayElement);
 
-    // Mount the WallPanel Svelte component into the CSS2DObject's DOM element
     mount(WallPanel, {
       target: handle.wallPanelElement,
-      props: {
-        onEnter: onWallEnter,
-        loading: wallLoading,
-        currentUserId,
-      },
+      props: { onEnter: onWallEnter, loading: wallLoading, currentUserId },
     });
 
     const interval = setInterval(() => { locked = handle.controls.isLocked; }, 100);
@@ -48,13 +47,34 @@
 
 <div bind:this={wrapper} style="position:relative;width:100%;height:100vh;overflow:hidden;">
   <canvas bind:this={canvas} style="width:100%;height:100%;display:block;" />
+
+  <!-- Vignette shown during inspect -->
+  <div class="veil" class:show={inspecting} />
+
   <Crosshair {locked} />
-  {#if !locked}
+
+  {#if inspecting}
+    <div class="hint">Click anywhere to put it back · Move mouse to rotate</div>
+  {:else if !locked}
     <div class="hint">Click to look around · Scroll to zoom · WASD to move · Turn around for controls</div>
   {/if}
 </div>
 
 <style>
+  .veil {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: radial-gradient(
+      125% 105% at 50% 46%,
+      rgba(0, 0, 0, 0) 32%,
+      rgba(0, 0, 0, 0.62) 100%
+    );
+    opacity: 0;
+    transition: opacity 0.45s;
+  }
+  .veil.show { opacity: 1; }
+
   .hint {
     position: absolute;
     bottom: 20px;
