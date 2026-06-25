@@ -11,7 +11,7 @@ import {
   ROOM_HALF_W, ROOM_HEIGHT,
 } from './constants';
 
-export function buildLighting(scene: THREE.Scene): void {
+export function buildLighting(scene: THREE.Scene): THREE.DirectionalLight {
   // Hemisphere
   const hemi = new THREE.HemisphereLight(HEMI_SKY, HEMI_GROUND, HEMI_INTENSITY);
   scene.add(hemi);
@@ -25,6 +25,7 @@ export function buildLighting(scene: THREE.Scene): void {
   key.position.set(KEY_LIGHT_X, KEY_LIGHT_Y, KEY_LIGHT_Z);
   key.castShadow = true;
   key.shadow.mapSize.set(2048, 2048);
+  key.shadow.radius = 3;
   key.shadow.camera.near = KEY_SHADOW_NEAR;
   key.shadow.camera.far = KEY_SHADOW_FAR;
   key.shadow.camera.left = KEY_SHADOW_LEFT;
@@ -42,8 +43,8 @@ export function buildLighting(scene: THREE.Scene): void {
   for (const [x, y, z] of lampPositions) {
     const pt = new THREE.PointLight(POINT_COLOR, POINT_INTENSITY, 0, POINT_DECAY);
     pt.position.set(x, y, z);
-    // castShadow omitted: each point light needs a 6-face cubemap shadow pass per frame,
-    // multiplying draw calls by 6×. The directional key light handles all shadow detail.
     scene.add(pt);
   }
+
+  return key;
 }

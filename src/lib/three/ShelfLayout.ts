@@ -6,11 +6,9 @@ import {
   SHELF_ROWS, SHELF_Y0, SHELF_DY, SHELF_PLANK_THICKNESS,
   CASE_HEIGHT, CASE_DEPTH, SPINE_THICKNESS,
   WALL_THICKNESS, CORNER_GAP,
-  SHELF_BACK_BOOKS_PER_ROW, SHELF_SIDE_BOOKS_PER_ROW,
   BOOK_DEPTH_VARIATION,
 } from './constants';
-
-type Slot = { x: number; y: number; z: number; rotY: number };
+import { debugState } from './debug';
 
 // Row fill order: middle outward → e.g. [4,5,3,6,2,7,1,8,0,9] for 10 rows
 function rowFillOrder(total: number): number[] {
@@ -23,73 +21,147 @@ function rowFillOrder(total: number): number[] {
   return order;
 }
 
-function buildBackWallSlots(): Slot[] {
-  const slots: Slot[] = [];
-  const baseZ = -ROOM_HALF_D + CASE_DEPTH / 2;
-  const backX0 = -ROOM_HALF_W + WALL_THICKNESS / 2 + SPINE_THICKNESS / 2;
-  for (const r of rowFillOrder(SHELF_ROWS)) {
-    const y = SHELF_Y0 + r * SHELF_DY + SHELF_PLANK_THICKNESS + CASE_HEIGHT / 2;
-    for (let i = 0; i < SHELF_BACK_BOOKS_PER_ROW; i++) {
-      slots.push({ x: backX0 + i * SPINE_THICKNESS, y, z: baseZ, rotY: 0 });
-    }
+// Stable integer hash from book ID so appearance never changes on rebuild.
+function stableHash(id: string): number {
+  let h = 0;
+  for (let i = 0; i < id.length; i++) {
+    h = (Math.imul(31, h) + id.charCodeAt(i)) | 0;
   }
-  return slots;
+  return Math.abs(h);
 }
 
-function buildSideWallSlots(side: 'left' | 'right'): Slot[] {
-  const slots: Slot[] = [];
-  const sideX = side === 'left' ? -ROOM_HALF_W + CASE_DEPTH / 2 : ROOM_HALF_W - CASE_DEPTH / 2;
-  // left wall spine faces +X (toward viewer), right wall spine faces -X
-  const rotY = side === 'left' ? Math.PI / 2 : -Math.PI / 2;
-  const sideZ0 = -ROOM_HALF_D + CORNER_GAP + WALL_THICKNESS / 2 + SPINE_THICKNESS / 2;
-  for (const r of rowFillOrder(SHELF_ROWS)) {
-    const y = SHELF_Y0 + r * SHELF_DY + SHELF_PLANK_THICKNESS + CASE_HEIGHT / 2;
-    for (let i = 0; i < SHELF_SIDE_BOOKS_PER_ROW; i++) {
-      slots.push({ x: sideX, y, z: sideZ0 + i * SPINE_THICKNESS, rotY });
-    }
-  }
-  return slots;
+// Thickness in metres based on page count. 280 pages ≈ SPINE_THICKNESS (default).
+function bookThickness(book: BookData): number {
+  const pages = book.numPages ?? 0;
+  if (pages <= 0) return SPINE_THICKNESS;
+  return Math.max(0.012, Math.min(0.055, (pages / 280) * SPINE_THICKNESS));
 }
 
-function addBooksToGroup(
+// Deterministic height derived from book ID hash, scaled by debugState.
+function bookHeight(seed: number): number {
+  const t = Math.abs(Math.sin(seed * 2.3 + 7.1)) * 0.5 + Math.abs(Math.cos(seed * 1.7 + 3.4)) * 0.5;
+  return CASE_HEIGHT * 0.82 + CASE_HEIGHT * 0.18 * t * debugState.heightScale;
+}
+
+// Deterministic depth push derived from book ID hash, scaled by debugState.
+function depthVariation(seed: number): number {
+  return Math.sin(seed * 2.7 + 1.3) * BOOK_DEPTH_VARIATION * debugState.depthScale;
+}
+
+// All per-book values pre-computed by the caller — no redundant recalculation.
+function placeMesh(
   group: THREE.Group,
-  books: BookData[],
-  slots: Slot[],
-  colorOffset: number,
+  meshMap: Map<string, THREE.Mesh>,
+  book: BookData,
+  seed: number,
+  t: number,   // thickness
+  h: number,   // height
+  x: number, y: number, z: number,
+  rotY: number,
 ): void {
-  const count = Math.min(books.length, slots.length);
-  for (let i = 0; i < count; i++) {
-    const slot = slots[i];
+  const mesh = createBookMesh(book, seed);
+  mesh.scale.set(t / SPINE_THICKNESS, h / CASE_HEIGHT, 1);
+  mesh.position.set(x, y, z);
+  mesh.rotation.y = rotY;
+  mesh.userData.basePos  = mesh.position.clone();
+  mesh.userData.baseRotY = rotY;
+  mesh.userData.baseQuat = mesh.quaternion.clone();
+  // Precompute hover-forward components — rotY is constant, no reason to call
+  // Math.sin/cos 1200 times per animation frame.
+  mesh.userData.hfx = Math.sin(rotY);
+  mesh.userData.hfz = Math.cos(rotY);
+  // Books start at their base position, so they're settled immediately.
+  mesh.userData.settled = true;
+  group.add(mesh);
+  meshMap.set(book.id, mesh);
+}
 
-    // Deterministic pseudo-random depth offset — gives the shelf a lived-in look
-    const depth = Math.sin((colorOffset + i) * 2.7 + 1.3) * BOOK_DEPTH_VARIATION;
-    // Depth axis: +Z for back wall (rotY≈0), ±X for side walls
-    const sx = slot.x + (slot.rotY > 0.1 ? depth : slot.rotY < -0.1 ? -depth : 0);
-    const sz = slot.z + (Math.abs(slot.rotY) < 0.1 ? depth : 0);
+function addBackWallBooks(
+  group: THREE.Group,
+  meshMap: Map<string, THREE.Mesh>,
+  books: BookData[],
+): void {
+  const baseZ = -ROOM_HALF_D + CASE_DEPTH / 2;
+  const fullHalf = ROOM_HALF_W - WALL_THICKNESS / 2;
+  const usableHalf = fullHalf * debugState.shelfWidthScale;
+  const xMin = -usableHalf;
+  const xMax = usableHalf;
+  let bookIndex = 0;
 
-    const mesh = createBookMesh(books[i], colorOffset + i);
-    mesh.position.set(sx, slot.y, sz);
-    mesh.rotation.y = slot.rotY;
-    mesh.userData.basePos = new THREE.Vector3(sx, slot.y, sz);
-    mesh.userData.baseRotY = slot.rotY;
-    mesh.userData.baseQuat = mesh.quaternion.clone(); // saved for inspect-exit rotation restore
-    group.add(mesh);
+  for (const r of rowFillOrder(SHELF_ROWS)) {
+    if (bookIndex >= books.length) break;
+    const shelfY = SHELF_Y0 + r * SHELF_DY + SHELF_PLANK_THICKNESS;
+    let x = xMin;
+
+    while (bookIndex < books.length) {
+      const book = books[bookIndex];
+      const seed  = stableHash(book.id);
+      const t     = bookThickness(book);
+      if (x + t > xMax) break;
+
+      const h     = bookHeight(seed);
+      const depth = depthVariation(seed);
+      placeMesh(group, meshMap, book, seed, t, h, x + t / 2, shelfY + h / 2, baseZ + depth, 0);
+      x += t;
+      bookIndex++;
+    }
   }
 }
 
-// Wall assignment: left = to-read, back = read, right = currently-reading
+function addSideWallBooks(
+  group: THREE.Group,
+  meshMap: Map<string, THREE.Mesh>,
+  books: BookData[],
+  side: 'left' | 'right',
+): void {
+  const sideX = side === 'left'
+    ? -ROOM_HALF_W + CASE_DEPTH / 2
+    : ROOM_HALF_W - CASE_DEPTH / 2;
+  const rotY = side === 'left' ? Math.PI / 2 : -Math.PI / 2;
+
+  const fullZMin = -ROOM_HALF_D + CORNER_GAP + WALL_THICKNESS / 2;
+  const fullZMax = ROOM_HALF_D - WALL_THICKNESS / 2;
+  const zCenter  = (fullZMin + fullZMax) / 2;
+  const halfDepth = ((fullZMax - fullZMin) / 2) * debugState.shelfWidthScale;
+  const zMin = zCenter - halfDepth;
+  const zMax = zCenter + halfDepth;
+  let bookIndex = 0;
+
+  for (const r of rowFillOrder(SHELF_ROWS)) {
+    if (bookIndex >= books.length) break;
+    const shelfY = SHELF_Y0 + r * SHELF_DY + SHELF_PLANK_THICKNESS;
+    let z = zMin;
+
+    while (bookIndex < books.length) {
+      const book = books[bookIndex];
+      const seed  = stableHash(book.id);
+      const t     = bookThickness(book);
+      if (z + t > zMax) break;
+
+      const h     = bookHeight(seed);
+      const depth = depthVariation(seed);
+      const bx    = sideX + (side === 'left' ? depth : -depth);
+      placeMesh(group, meshMap, book, seed, t, h, bx, shelfY + h / 2, z + t / 2, rotY);
+      z += t;
+      bookIndex++;
+    }
+  }
+}
+
+// Wall assignment: back (centre) = read, left = currently-reading, right = to-read
 export function placeBooks(
   scene: THREE.Scene,
   readBooks: BookData[],
   toReadBooks: BookData[],
   currentlyReadingBooks: BookData[],
-): THREE.Group {
-  const group = new THREE.Group();
+): { group: THREE.Group; meshMap: Map<string, THREE.Mesh> } {
+  const group   = new THREE.Group();
+  const meshMap = new Map<string, THREE.Mesh>();
 
-  addBooksToGroup(group, toReadBooks, buildSideWallSlots('left'), 0);
-  addBooksToGroup(group, readBooks, buildBackWallSlots(), toReadBooks.length);
-  addBooksToGroup(group, currentlyReadingBooks, buildSideWallSlots('right'), toReadBooks.length + readBooks.length);
+  addSideWallBooks(group, meshMap, currentlyReadingBooks, 'left');
+  addBackWallBooks(group, meshMap, readBooks);
+  addSideWallBooks(group, meshMap, toReadBooks, 'right');
 
   scene.add(group);
-  return group;
+  return { group, meshMap };
 }

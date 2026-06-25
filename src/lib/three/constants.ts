@@ -25,9 +25,9 @@ export const PITCH_LIMIT = 1.48;          // radians
 export const MOVE_SPEED = 0.008;
 export const SCROLL_ZOOM_SPEED = 0.05;
 
-// Shelves
-export const SHELF_ROWS = 10;
-export const SHELF_Y0 = 0.16;             // lowest shelf surface Y
+// Shelves — removed 3 bottom and 1 top rows from original 10
+export const SHELF_ROWS = 6;
+export const SHELF_Y0 = 0.16 + 3 * 0.215; // skip 3 bottom rows → 0.805
 export const SHELF_DY = 0.215;            // vertical spacing between shelves
 export const CASE_HEIGHT = 0.185;
 export const CASE_DEPTH = 0.135;
@@ -72,6 +72,10 @@ export const BOOK_HOVER_OFFSET = 0.04;   // metres forward on hover
 export const BOOK_HOVER_LERP = 0.12;
 export const DRAG_THRESHOLD_PX = 4;
 export const BOOK_DEPTH_VARIATION = 0.012; // ±metres random depth variation on shelf
+
+// Book peek (list-select slide-out)
+export const BOOK_PEEK_OFFSET = 0.12;   // metres to slide forward
+export const BOOK_PEEK_TILT   = 0.22;   // radians to tip top toward viewer
 
 // Book inspect (fly-out) mode
 export const INSPECT_DISTANCE = 0.42;    // metres held in front of camera

@@ -32,6 +32,12 @@ export function parseGoodreadsRSS(xml: string): BookData[] {
     const shelf = parseShelf(text(item, 'user_shelves'));
     const dateAdded = parseDate(text(item, 'user_date_added'));
 
+    const numPagesRaw = text(item, 'num_pages') || text(item, 'book_num_pages');
+    const numPages = numPagesRaw ? parseInt(numPagesRaw, 10) : undefined;
+
+    const yearRaw = text(item, 'book_published') || text(item, 'publication_year');
+    const year = yearRaw ? parseInt(yearRaw, 10) : undefined;
+
     return {
       id: bookId,
       title,
@@ -39,6 +45,8 @@ export function parseGoodreadsRSS(xml: string): BookData[] {
       coverUrl: coverUrl || undefined,
       shelf,
       dateAdded,
+      numPages: numPages && numPages > 0 ? numPages : undefined,
+      year: year && year > 0 ? year : undefined,
     };
   });
 }

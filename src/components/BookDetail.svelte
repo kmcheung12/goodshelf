@@ -47,6 +47,16 @@
 
         <dt>Added</dt>
         <dd>{formatDate(book.dateAdded)}</dd>
+
+        <dt>Goodreads</dt>
+        <dd>
+          <a
+            class="gr-link"
+            href="https://www.goodreads.com/book/show/{book.id}"
+            target="_blank"
+            rel="noopener noreferrer"
+          >View page ↗</a>
+        </dd>
       </dl>
     </div>
   </div>
@@ -137,4 +147,11 @@
     margin: 0;
     color: rgba(244, 241, 234, 0.85);
   }
+
+  .gr-link {
+    color: rgba(244, 241, 234, 0.65);
+    text-decoration: none;
+    transition: color 0.15s;
+  }
+  .gr-link:hover { color: #f4f1ea; }
 </style>

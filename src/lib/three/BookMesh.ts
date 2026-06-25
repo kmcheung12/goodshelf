@@ -83,34 +83,99 @@ export function makeSpineTexture(title: string, author: string, color: string): 
   return new THREE.CanvasTexture(canvas);
 }
 
-// Single shared geometry for all book meshes — same dimensions, no reason to duplicate.
-// BoxGeometry default groups: [+X, -X, +Y, -Y, +Z(spine), -Z(cover)]
-// Groups 0-3 (sides) are consecutive in the index buffer (indices 0-23), so merge into one
-// group. This cuts draw calls per book from 6 → 3.
+// BoxGeometry(SPINE_THICKNESS, CASE_HEIGHT, CASE_DEPTH) face order:
+//   +X (0-5)   : wide face CASE_HEIGHT×CASE_DEPTH = FRONT COVER  → materialIndex 2
+//   -X (6-11)  : wide face                         = back cover   → materialIndex 0 (side)
+//   +Y (12-17) : top
+//   -Y (18-23) : bottom
+//   +Z (24-29) : thin face SPINE_THICKNESS×CASE_HEIGHT = SPINE    → materialIndex 1
+//   -Z (30-35) : thin face                          = fore-edge   → materialIndex 0 (side)
 const SHARED_BOOK_GEO: THREE.BufferGeometry = (() => {
   const geo = new THREE.BoxGeometry(SPINE_THICKNESS, CASE_HEIGHT, CASE_DEPTH);
   geo.groups = [
-    { start: 0, count: 24, materialIndex: 0 },  // sides (+X -X +Y -Y merged)
-    { start: 24, count: 6, materialIndex: 1 },   // +Z spine
-    { start: 30, count: 6, materialIndex: 2 },   // -Z cover
+    { start: 0,  count: 6,  materialIndex: 2 }, // +X = front cover
+    { start: 6,  count: 18, materialIndex: 0 }, // -X, +Y, -Y = sides
+    { start: 24, count: 6,  materialIndex: 1 }, // +Z = spine
+    { start: 30, count: 6,  materialIndex: 0 }, // -Z = fore-edge
   ];
   return geo;
 })();
 
+const PROXY_URL    = import.meta.env.VITE_PROXY_URL ?? 'http://localhost:3001';
+const IS_EXTENSION = import.meta.env.VITE_IS_EXTENSION === 'true';
+
 const loader = new THREE.TextureLoader();
-loader.crossOrigin = 'anonymous';
+
+// ── Cover load queue ──────────────────────────────────────────────────────────
+// Rate-limit concurrent cover fetches so 1 000+ books don't all try to load
+// simultaneously, which would saturate the browser's connection pool and spike
+// the main thread.
+const MAX_COVER_CONCURRENT = 8;
+let _coverActive = 0;
+const _coverQueue: Array<() => void> = [];
+
+function enqueueCover(fn: () => Promise<void>): void {
+  const run = () => {
+    _coverActive++;
+    fn().finally(() => {
+      _coverActive--;
+      if (_coverQueue.length > 0) _coverQueue.shift()!();
+    });
+  };
+  if (_coverActive < MAX_COVER_CONCURRENT) run();
+  else _coverQueue.push(run);
+}
+
+// ── Spine texture idle queue ───────────────────────────────────────────────────
+// makeSpineTexture() creates a canvas, fills it, and rasterises text — about
+// 0.5–2 ms each.  For 1 200 books that's a 600 ms–2 400 ms synchronous block
+// during layout.  We spread the work across idle frames instead.
+const _spineQueue: Array<() => void> = [];
+let   _spineScheduled = false;
+
+function enqueueSpine(fn: () => void): void {
+  _spineQueue.push(fn);
+  if (!_spineScheduled) {
+    _spineScheduled = true;
+    scheduleSpineFlush();
+  }
+}
+
+function scheduleSpineFlush(): void {
+  if (typeof requestIdleCallback !== 'undefined') {
+    requestIdleCallback(flushSpineQueue, { timeout: 150 });
+  } else {
+    setTimeout(flushSpineQueue, 0);
+  }
+}
+
+function flushSpineQueue(deadline?: IdleDeadline): void {
+  // Process up to 40 per flush, but stop early if the frame is getting long.
+  let n = 0;
+  while (_spineQueue.length > 0 && n < 40) {
+    if (deadline && deadline.timeRemaining() < 1 && n > 0) break;
+    _spineQueue.shift()!();
+    n++;
+  }
+  if (_spineQueue.length > 0) {
+    scheduleSpineFlush();
+  } else {
+    _spineScheduled = false;
+  }
+}
 
 export function createBookMesh(book: BookData, index: number): THREE.Mesh {
   const initialColor = book.spineColor ?? SPINE_PALETTE[index % SPINE_PALETTE.length];
-  let spineTex = makeSpineTexture(book.title, book.author, initialColor);
 
   const sideMat = new THREE.MeshStandardMaterial({
     color: initialColor,
     roughness: SPINE_ROUGHNESS,
     metalness: SPINE_METALNESS,
   });
+  // Start with a plain colour — canvas texture is queued for idle creation so
+  // placing 1 200 books doesn't block the main thread for ~1–2 seconds.
   const spineMat = new THREE.MeshStandardMaterial({
-    map: spineTex,
+    color: initialColor,
     roughness: SPINE_ROUGHNESS,
     metalness: SPINE_METALNESS,
   });
@@ -122,34 +187,58 @@ export function createBookMesh(book: BookData, index: number): THREE.Mesh {
 
   // 3 materials matching the 3 merged groups: sides | spine | cover
   const mesh = new THREE.Mesh(SHARED_BOOK_GEO, [sideMat, spineMat, coverMat]);
-  // Books don't cast meaningful shadows (thin, on shelves) — skipping saves the largest
-  // chunk of per-frame draw calls (shadow cubemap passes for point lights).
   mesh.castShadow = false;
   mesh.receiveShadow = false;
   mesh.userData.bookData = book;
 
+  // Track current spine colour so the idle callback uses the best known value.
+  let spineColor = initialColor;
+  let spineTex: THREE.CanvasTexture | null = null;
+
+  function applySpineTexture(color: string) {
+    const oldTex = spineTex;
+    spineTex = makeSpineTexture(book.title, book.author, color);
+    spineMat.map = spineTex;
+    spineMat.color.set(0xffffff); // texture provides all colour
+    spineMat.needsUpdate = true;
+    oldTex?.dispose();
+  }
+
+  // Schedule spine canvas creation during browser idle time.
+  enqueueSpine(() => applySpineTexture(spineColor));
+
   if (book.coverUrl) {
-    loader.load(book.coverUrl, (tex) => {
-      tex.colorSpace = THREE.SRGBColorSpace;
+    enqueueCover(() => {
+      const resolveCoverUrl = IS_EXTENSION
+        ? fetch(book.coverUrl!)
+            .then((r) => r.blob())
+            .then((blob) => URL.createObjectURL(blob))
+        : Promise.resolve(`${PROXY_URL}/cover?url=${encodeURIComponent(book.coverUrl!)}`);
 
-      const rgb = dominantRGB(tex.image as HTMLImageElement);
-      if (rgb) {
-        const [r, g, b] = rgb;
-        const cssColor = `rgb(${r},${g},${b})`;
-        const oldTex = spineTex;
-        spineTex = makeSpineTexture(book.title, book.author, cssColor);
-        spineMat.map = spineTex;
-        spineMat.needsUpdate = true;
-        oldTex.dispose();
-        sideMat.color.set(cssColor);
-        sideMat.needsUpdate = true;
-      }
+      return resolveCoverUrl.then((coverSrc) => new Promise<void>((resolve) => {
+        loader.load(coverSrc, (tex) => {
+          if (IS_EXTENSION) URL.revokeObjectURL(coverSrc);
+          tex.colorSpace = THREE.SRGBColorSpace;
 
-      coverMat.map = tex;
-      coverMat.color.set(0xffffff);
-      coverMat.needsUpdate = true;
-    }, undefined, () => {
-      console.warn(`[BookMesh] Failed to load cover for "${book.title}"`);
+          const rgb = dominantRGB(tex.image as HTMLImageElement);
+          if (rgb) {
+            const [r, g, b] = rgb;
+            spineColor = `rgb(${r},${g},${b})`;
+            sideMat.color.set(spineColor);
+            sideMat.needsUpdate = true;
+            // Re-generate the spine texture with the better colour (idle).
+            enqueueSpine(() => applySpineTexture(spineColor));
+          }
+
+          coverMat.map = tex;
+          coverMat.color.set(0xffffff);
+          coverMat.needsUpdate = true;
+          resolve();
+        }, undefined, () => {
+          console.warn(`[BookMesh] Failed to load cover for "${book.title}"`);
+          resolve();
+        });
+      })).catch(() => {});
     });
   }
 

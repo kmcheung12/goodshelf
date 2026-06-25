@@ -68,6 +68,15 @@ export class Controls {
     this.camera.updateProjectionMatrix();
   };
 
+  lookAt(target: THREE.Vector3) {
+    const dx = target.x - this.camera.position.x;
+    const dy = target.y - this.camera.position.y;
+    const dz = target.z - this.camera.position.z;
+    const horizDist = Math.sqrt(dx * dx + dz * dz);
+    this.yaw = Math.atan2(-dx, -dz);
+    this.pitch = -Math.atan2(dy, horizDist);
+  }
+
   update() {
     // Apply yaw + pitch to camera quaternion
     this._euler.set(this.pitch, this.yaw, 0);

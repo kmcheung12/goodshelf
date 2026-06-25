@@ -8,6 +8,8 @@ export interface BookData {
   spineColor?: string;
   dateAdded?: Date;
   shelf?: BookShelf;
+  numPages?: number;
+  year?: number;
 }
 
 export interface IBookAdapter {

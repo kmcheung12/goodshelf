@@ -5,6 +5,7 @@
   import type { BookData } from '../lib/adapters/types';
   import Crosshair from './Crosshair.svelte';
   import WallPanel from './WallPanel.svelte';
+  import BookPanel from './BookPanel.svelte';
 
   export let readBooks: BookData[] = [];
   export let toReadBooks: BookData[] = [];
@@ -19,12 +20,14 @@
   let handle: SceneHandle;
   let locked = false;
   let inspecting = false;
+  let hoveredBook: BookData | null = null;
 
   onMount(() => {
     handle = initScene(
       canvas,
       onBookSelect,
       (v) => { inspecting = v; },
+      (book) => { hoveredBook = book; },
     );
 
     wrapper.appendChild(handle.overlayElement);
@@ -45,13 +48,34 @@
   onDestroy(() => handle?.dispose());
 </script>
 
+<BookPanel
+  {readBooks}
+  {toReadBooks}
+  {currentlyReadingBooks}
+  {hoveredBook}
+  {locked}
+  onLookAt={(id) => { handle?.lookAtBook(id); handle?.peekBook(id); }}
+  onSelectBook={(book) => { hoveredBook = book; onBookSelect(book); }}
+  onInspectBook={(book) => { handle?.inspectBook(book.id); }}
+/>
+
 <div bind:this={wrapper} style="position:relative;width:100%;height:100vh;overflow:hidden;">
   <canvas bind:this={canvas} style="width:100%;height:100%;display:block;" />
 
   <!-- Vignette shown during inspect -->
-  <div class="veil" class:show={inspecting} />
+  <div class="veil" class:show={inspecting}></div>
 
   <Crosshair {locked} />
+
+  {#if hoveredBook && !inspecting}
+    <div class="book-tooltip">
+      <span class="book-id">#{hoveredBook.id}</span>
+      <span class="book-title">{hoveredBook.title}</span>
+      <span class="book-meta">
+        {hoveredBook.author}{hoveredBook.year ? ` · ${hoveredBook.year}` : ''}
+      </span>
+    </div>
+  {/if}
 
   {#if inspecting}
     <div class="hint">Click anywhere to put it back · Move mouse to rotate</div>
@@ -86,5 +110,48 @@
     pointer-events: none;
     letter-spacing: 0.04em;
     white-space: nowrap;
+  }
+
+  .book-tooltip {
+    position: absolute;
+    bottom: 28px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    background: rgba(10, 10, 14, 0.82);
+    border: 1px solid rgba(255, 255, 255, 0.10);
+    border-radius: 8px;
+    padding: 10px 18px 11px;
+    pointer-events: none;
+    white-space: nowrap;
+    backdrop-filter: blur(6px);
+  }
+
+  .book-id {
+    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    color: rgba(255, 255, 255, 0.38);
+    text-transform: uppercase;
+    margin-bottom: 1px;
+  }
+
+  .book-title {
+    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    font-size: 17px;
+    font-weight: 700;
+    color: #f4f1ea;
+    letter-spacing: 0.01em;
+  }
+
+  .book-meta {
+    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    font-size: 12px;
+    color: rgba(244, 241, 234, 0.5);
+    letter-spacing: 0.03em;
   }
 </style>

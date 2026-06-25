@@ -7,11 +7,16 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "check": "svelte-check --tsconfig ./tsconfig.app.json && tsc -p tsconfig.node.json"
+    "check": "svelte-check --tsconfig ./tsconfig.app.json && tsc -p tsconfig.node.json",
+    "dev:extension": "vite build --mode extension --watch",
+    "dev:extension-firefox": "vite build --mode extension-firefox --watch",
+    "build:extension": "vite build --mode extension",
+    "build:firefox": "vite build --mode extension-firefox"
   },
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "^7.1.2",
     "@tsconfig/svelte": "^5.0.8",
+    "@types/chrome": "^0.2.0",
     "@types/node": "^24.13.2",
     "@types/three": "^0.184.1",
     "svelte": "^5.56.3",
@@ -20,6 +25,7 @@
     "vite": "^8.1.0"
   },
   "dependencies": {
+    "lil-gui": "^0.21.0",
     "three": "^0.184.0"
   }
 }
