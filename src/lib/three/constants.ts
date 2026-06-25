@@ -66,3 +66,28 @@ export const LAMP_X_FACTOR = 0.4;
 export const POINT_COLOR = '#ffe6c0';
 export const POINT_INTENSITY = 2.8;
 export const POINT_DECAY = 1.8;
+
+// Book mesh
+export const BOOK_HOVER_OFFSET = 0.04;   // metres forward on hover
+export const SPINE_CANVAS_W = 76;         // px
+export const SPINE_CANVAS_H = 540;        // px
+export const SPINE_ROUGHNESS = 0.55;
+export const SPINE_METALNESS = 0.03;
+
+// Spine color palette (30 colours, seeded by book index)
+export const SPINE_PALETTE = [
+  '#1a1a2e', '#16213e', '#0f3460', '#533483',
+  '#2b2d42', '#ef233c', '#d62828', '#f77f00',
+  '#fcbf49', '#023e8a', '#0077b6', '#00b4d8',
+  '#264653', '#2a9d8f', '#e9c46a', '#f4a261',
+  '#e76f51', '#6d6875', '#b5838d', '#c77dff',
+  '#4a4e69', '#9a8c98', '#7b2d8b', '#3d405b',
+  '#81b29a', '#f2cc8f', '#e07a5f', '#8ecae6',
+  '#f4f1de', '#2d3142',
+] as const;
+
+// Shelf capacity (derived from room geometry)
+// Back wall: (ROOM_HALF_W*2 - WALL_THICKNESS) / SPINE_THICKNESS ≈ 62
+export const SHELF_BACK_BOOKS_PER_ROW = 62;
+// Side walls: (ROOM_HALF_D*2 - CORNER_GAP - WALL_THICKNESS) / SPINE_THICKNESS ≈ 52
+export const SHELF_SIDE_BOOKS_PER_ROW = 52;
