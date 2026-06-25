@@ -1,20 +1,24 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { initScene, type SceneHandle } from '../lib/three/scene';
+  import type { BookData } from '../lib/adapters/types';
   import Crosshair from './Crosshair.svelte';
+
+  export let books: BookData[] = [];
+  export let onBookSelect: (book: BookData | null) => void = () => {};
 
   let canvas: HTMLCanvasElement;
   let handle: SceneHandle;
   let locked = false;
 
   onMount(() => {
-    handle = initScene(canvas);
-    // Poll pointer lock state for crosshair
-    const interval = setInterval(() => {
-      locked = handle.controls.isLocked;
-    }, 100);
+    handle = initScene(canvas, onBookSelect);
+    const interval = setInterval(() => { locked = handle.controls.isLocked; }, 100);
     return () => clearInterval(interval);
   });
+
+  // Reactive: push new books into the scene whenever the prop changes
+  $: if (handle && books.length > 0) handle.setBooks(books);
 
   onDestroy(() => handle?.dispose());
 </script>
@@ -22,7 +26,6 @@
 <canvas bind:this={canvas} style="width:100%;height:100vh;display:block;" />
 <Crosshair {locked} />
 
-<!-- Click-to-enter hint shown when not locked -->
 {#if !locked}
   <div class="hint">Click to look around · Scroll to zoom · WASD to move</div>
 {/if}
