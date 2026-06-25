@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
   import ShelfScene from './components/ShelfScene.svelte';
   import Intro from './components/Intro.svelte';
   import BookDetail from './components/BookDetail.svelte';
@@ -16,6 +17,8 @@
   async function handleEnter(userId: string) {
     loading = true;
     error = '';
+    // Reflect the user ID in the URL so the link is shareable
+    history.replaceState(null, '', `/${userId}`);
     try {
       const [read, toRead, currentlyReading] = await Promise.all([
         new GoodreadsAdapter(userId, 'read').getBooks(),
@@ -32,6 +35,12 @@
       loading = false;
     }
   }
+
+  onMount(() => {
+    // Auto-load if URL is /{numeric-id}
+    const match = window.location.pathname.match(/^\/(\d+)\/?$/);
+    if (match) handleEnter(match[1]);
+  });
 </script>
 
 <ShelfScene
