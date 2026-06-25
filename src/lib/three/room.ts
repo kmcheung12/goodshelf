@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import {
   ROOM_HALF_W, ROOM_HALF_D, ROOM_HEIGHT,
   COLOR_WALL, COLOR_FLOOR, COLOR_CEILING,
+  WALL_THICKNESS,
 } from './constants';
 
 function makeMat(color: string, roughness = 0.95, metalness = 0) {
@@ -16,7 +17,7 @@ export function buildRoom(scene: THREE.Scene): void {
   const W = ROOM_HALF_W * 2;
   const D = ROOM_HALF_D * 2;
   const H = ROOM_HEIGHT;
-  const T = 0.05; // wall thickness
+  const T = WALL_THICKNESS;
 
   // Back wall (−Z face)
   const backWall = new THREE.Mesh(new THREE.BoxGeometry(W, H, T), wallMat);

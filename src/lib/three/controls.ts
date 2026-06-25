@@ -12,6 +12,10 @@ export class Controls {
   private keys = new Set<string>();
   public isLocked = false;
 
+  private readonly _euler = new THREE.Euler(0, 0, 0, 'YXZ');
+  private readonly _yawEuler = new THREE.Euler(0, 0, 0, 'YXZ');
+  private readonly _quat = new THREE.Quaternion();
+
   constructor(private camera: THREE.PerspectiveCamera) {}
 
   attach(canvas: HTMLCanvasElement) {
@@ -32,6 +36,7 @@ export class Controls {
     document.removeEventListener('keydown', this.onKeyDown);
     document.removeEventListener('keyup', this.onKeyUp);
     this.canvas.removeEventListener('wheel', this.onWheel);
+    this.keys.clear();
     this.canvas = null;
   }
 
@@ -64,8 +69,8 @@ export class Controls {
 
   update() {
     // Apply yaw + pitch to camera quaternion
-    const euler = new THREE.Euler(this.pitch, this.yaw, 0, 'YXZ');
-    this.camera.quaternion.setFromEuler(euler);
+    this._euler.set(this.pitch, this.yaw, 0);
+    this.camera.quaternion.setFromEuler(this._euler);
 
     // WASD movement in camera-local XZ
     if (!this.isLocked) return;
@@ -77,9 +82,8 @@ export class Controls {
     if (dir.lengthSq() === 0) return;
 
     dir.normalize().multiplyScalar(MOVE_SPEED);
-    dir.applyQuaternion(
-      new THREE.Quaternion().setFromEuler(new THREE.Euler(0, this.yaw, 0))
-    );
+    this._yawEuler.set(0, this.yaw, 0);
+    dir.applyQuaternion(this._quat.setFromEuler(this._yawEuler));
 
     const p = this.camera.position;
     p.x = Math.max(CAM_XMIN, Math.min(CAM_XMAX, p.x + dir.x));

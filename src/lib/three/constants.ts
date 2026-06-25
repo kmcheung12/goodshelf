@@ -37,6 +37,9 @@ export const COLOR_WALL = '#cdc6b6';
 export const COLOR_FLOOR = '#2f2417';
 export const COLOR_CEILING = '#f2efe7';
 
+// Room geometry
+export const WALL_THICKNESS = 0.05;
+
 // Lighting
 export const HEMI_SKY = '#fff3df';
 export const HEMI_GROUND = '#241f17';
@@ -44,6 +47,17 @@ export const HEMI_INTENSITY = 0.62;
 export const AMBIENT_INTENSITY = 0.34;
 export const KEY_COLOR = '#ffead0';
 export const KEY_INTENSITY = 0.42;
+export const KEY_LIGHT_X = 0.7;
+export const KEY_LIGHT_Y = 3.6;
+export const KEY_LIGHT_Z = 0.9;
+export const KEY_SHADOW_NEAR = 0.1;
+export const KEY_SHADOW_FAR = 10;
+export const KEY_SHADOW_LEFT = -2;
+export const KEY_SHADOW_RIGHT = 2;
+export const KEY_SHADOW_TOP = 3;
+export const KEY_SHADOW_BOTTOM = -1;
+export const LAMP_CEILING_OFFSET = 0.05;
+export const LAMP_X_FACTOR = 0.4;
 export const POINT_COLOR = '#ffe6c0';
 export const POINT_INTENSITY = 1.35;
 export const POINT_DECAY = 2;
