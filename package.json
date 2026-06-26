@@ -11,7 +11,7 @@
     "dev:extension": "vite build --mode extension --watch",
     "dev:extension-firefox": "vite build --mode extension-firefox --watch",
     "build:extension": "vite build --mode extension",
-    "build:firefox": "vite build --mode extension-firefox"
+    "build:extension-firefox": "vite build --mode extension-firefox"
   },
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "^7.1.2",
