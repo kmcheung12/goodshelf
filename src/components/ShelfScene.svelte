@@ -30,6 +30,8 @@
   let placedToReadBooks: BookData[] = [];
   let placedCurrentlyReadingBooks: BookData[] = [];
 
+  const isMobile = typeof window !== 'undefined' && 'ontouchstart' in window;
+
   // Keep store in sync with props so WallPanel stays reactive
   $: wallPanelStore.update(s => ({ ...s, currentUserId, error }));
 
@@ -69,16 +71,19 @@
 
     const interval = setInterval(() => { locked = handle!.controls.isLocked; }, 100);
 
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.code === 'KeyF' && handle!.controls.isLocked) {
-        showPanel = !showPanel;
-      }
-    };
-    document.addEventListener('keydown', onKeyDown);
+    let onKeyDown: ((e: KeyboardEvent) => void) | undefined;
+    if (!isMobile) {
+      onKeyDown = (e: KeyboardEvent) => {
+        if (e.code === 'KeyF' && handle!.controls.isLocked) {
+          showPanel = !showPanel;
+        }
+      };
+      document.addEventListener('keydown', onKeyDown);
+    }
 
     return () => {
       clearInterval(interval);
-      document.removeEventListener('keydown', onKeyDown);
+      if (onKeyDown) document.removeEventListener('keydown', onKeyDown);
     };
   });
 
@@ -89,7 +94,7 @@
   onDestroy(() => handle?.dispose());
 </script>
 
-{#if showPanel}
+{#if showPanel && !isMobile}
 <BookPanel
   readBooks={placedReadBooks}
   toReadBooks={placedToReadBooks}
@@ -108,7 +113,9 @@
   <!-- Vignette shown during inspect -->
   <div class="veil" class:show={inspecting}></div>
 
-  <Crosshair {locked} />
+  {#if !isMobile}
+    <Crosshair {locked} />
+  {/if}
 
   {#if hoveredBook && !inspecting}
     <div class="book-tooltip">
@@ -120,7 +127,15 @@
     </div>
   {/if}
 
-  {#if inspecting}
+  {#if isMobile}
+    {#if inspecting}
+      <div class="hint">Tap anywhere to put it back · Move finger to rotate</div>
+    {:else if phase === 'browsing'}
+      <div class="hint">Drag to look · Tap a book · Double-tap to inspect</div>
+    {:else}
+      <div class="hint">Drag to look around</div>
+    {/if}
+  {:else if inspecting}
     <div class="hint">Click anywhere to put it back · Move mouse to rotate</div>
   {:else if !locked}
     {#if phase === 'browsing'}
