@@ -318,39 +318,45 @@ export function createBookMesh(book: BookData, index: number): THREE.Mesh {
   // Schedule spine canvas creation during browser idle time.
   enqueueSpine(() => applySpineTexture(spineColor));
 
+  // Cover loads lazily — only when the user looks at or inspects the book.
   if (book.coverUrl) {
-    enqueueCover(() => {
-      const resolveCoverUrl = IS_EXTENSION
-        ? fetch(book.coverUrl!)
-            .then((r) => r.blob())
-            .then((blob) => URL.createObjectURL(blob))
-        : Promise.resolve(`${PROXY_URL}/cover?url=${encodeURIComponent(book.coverUrl!)}`);
+    let coverRequested = false;
+    mesh.userData.loadCover = () => {
+      if (coverRequested) return;
+      coverRequested = true;
 
-      return resolveCoverUrl.then((coverSrc) => new Promise<void>((resolve) => {
-        loader.load(coverSrc, (tex) => {
-          if (IS_EXTENSION) URL.revokeObjectURL(coverSrc);
-          tex.colorSpace = THREE.SRGBColorSpace;
+      enqueueCover(() => {
+        const resolveCoverUrl = IS_EXTENSION
+          ? fetch(book.coverUrl!)
+              .then((r) => r.blob())
+              .then((blob) => URL.createObjectURL(blob))
+          : Promise.resolve(`${PROXY_URL}/cover?url=${encodeURIComponent(book.coverUrl!)}`);
 
-          const rgb = dominantRGB(tex.image as HTMLImageElement);
-          if (rgb) {
-            const [r, g, b] = rgb;
-            spineColor = `rgb(${r},${g},${b})`;
-            sideMat.color.set(spineColor);
-            sideMat.needsUpdate = true;
-            // Re-generate the spine texture with the better colour (idle).
-            enqueueSpine(() => applySpineTexture(spineColor));
-          }
+        return resolveCoverUrl.then((coverSrc) => new Promise<void>((resolve) => {
+          loader.load(coverSrc, (tex) => {
+            if (IS_EXTENSION) URL.revokeObjectURL(coverSrc);
+            tex.colorSpace = THREE.SRGBColorSpace;
 
-          coverMat.map = tex;
-          coverMat.color.set(0xffffff);
-          coverMat.needsUpdate = true;
-          resolve();
-        }, undefined, () => {
-          console.warn(`[BookMesh] Failed to load cover for "${book.title}"`);
-          resolve();
-        });
-      })).catch(() => {});
-    });
+            const rgb = dominantRGB(tex.image as HTMLImageElement);
+            if (rgb) {
+              const [r, g, b] = rgb;
+              spineColor = `rgb(${r},${g},${b})`;
+              sideMat.color.set(spineColor);
+              sideMat.needsUpdate = true;
+              enqueueSpine(() => applySpineTexture(spineColor));
+            }
+
+            coverMat.map = tex;
+            coverMat.color.set(0xffffff);
+            coverMat.needsUpdate = true;
+            resolve();
+          }, undefined, () => {
+            console.warn(`[BookMesh] Failed to load cover for "${book.title}"`);
+            resolve();
+          });
+        })).catch(() => {});
+      });
+    };
   }
 
   return mesh;

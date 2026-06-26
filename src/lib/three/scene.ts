@@ -164,6 +164,7 @@ export function initScene(
     setPeek(null);
     inspectedMesh = mesh;
     mesh.userData.inspecting = true;
+    mesh.userData.loadCover?.(); // ensure cover loads when inspected
 
     mouseX = window.innerWidth / 2;
     mouseY = window.innerHeight / 2;
@@ -310,7 +311,10 @@ export function initScene(
       if (hoveredMesh !== _lastHovered) {
         // Un-settle both the previous and new hovered book so they animate.
         if (_lastHovered) _lastHovered.userData.settled = false;
-        if (hoveredMesh)  hoveredMesh.userData.settled  = false;
+        if (hoveredMesh) {
+          hoveredMesh.userData.settled = false;
+          hoveredMesh.userData.loadCover?.(); // lazy cover load on first hover
+        }
         _lastHovered = hoveredMesh;
         onBookHover?.(hoveredMesh?.userData.bookData ?? null);
       }
