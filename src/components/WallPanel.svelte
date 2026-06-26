@@ -79,14 +79,6 @@
     backdrop-filter: blur(4px);
   }
 
-  .eyebrow {
-    font-size: 11px;
-    letter-spacing: 0.22em;
-    text-transform: uppercase;
-    color: rgba(244, 241, 234, 0.55);
-    margin: 0 0 12px;
-  }
-
   .title {
     font-size: 48px;
     font-weight: 700;

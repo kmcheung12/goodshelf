@@ -112,13 +112,13 @@
   <!-- detail: book list -->
   <ol class="books" bind:this={listEl}>
     {#each activeBooks as book, i}
-      <!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
       <li
         class="book-item"
         class:highlighted={selectedIndex === i}
         data-idx={i}
         on:mouseenter={() => { if (!locked) hover(book, i); }}
         on:click={() => click(book, i)}
+        on:keydown={(e) => { if (e.key === 'Enter' || e.key === ' ') click(book, i); }}
       >
         <span class="num">{i + 1}</span>
         <span class="name">{book.title}</span>

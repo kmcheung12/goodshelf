@@ -33,6 +33,7 @@
   // React to phase changes once the scene is ready
   $: if (handle) {
     handle.setLoading(phase === 'loading');
+    if (phase === 'loading')  handle.faceDoorway();
     if (phase === 'browsing') handle.turnToBooks();
   }
 
@@ -94,7 +95,7 @@
 {/if}
 
 <div bind:this={wrapper} style="position:relative;width:100%;height:100vh;overflow:hidden;">
-  <canvas bind:this={canvas} style="width:100%;height:100%;display:block;" />
+  <canvas bind:this={canvas} style="width:100%;height:100%;display:block;"></canvas>
 
   <!-- Vignette shown during inspect -->
   <div class="veil" class:show={inspecting}></div>
@@ -115,9 +116,9 @@
     <div class="hint">Click anywhere to put it back · Move mouse to rotate</div>
   {:else if !locked}
     {#if phase === 'browsing'}
-      <div class="hint">Click to look around · Scroll to zoom · WASD to move · Turn around to search</div>
+      <div class="hint">Click to move around · Scroll to zoom · WASD to move · Turn around to search</div>
     {:else}
-      <div class="hint">Click to look around</div>
+      <div class="hint">Click to move around</div>
     {/if}
   {/if}
 </div>

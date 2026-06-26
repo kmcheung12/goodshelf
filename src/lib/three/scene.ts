@@ -83,9 +83,9 @@ export function initScene(
   scene.add(wallPanelObj);
 
   const loadingEl = document.createElement('div');
-  loadingEl.style.display = 'none';
   const loadingObj = new CSS2DObject(loadingEl);
   loadingObj.position.set(0, CAM_START_Y, ROOM_HALF_D);
+  loadingObj.visible = false; // CSS2DRenderer respects Object3D.visible
   scene.add(loadingObj);
 
   const controls = new Controls(camera, Math.PI); // start facing the doorway (+Z)
@@ -429,10 +429,10 @@ export function initScene(
       controls.animateYawTo(Math.PI); // face front wall / doorway (+Z)
     },
     setLoading(v: boolean) {
-      _targetLightScale          = v ? debugState.loadingDim : 1;
-      controls.frozen            = v;
-      loadingEl.style.display    = v ? '' : 'none';
-      wallPanelEl.style.display  = v ? 'none' : '';
+      _targetLightScale   = v ? debugState.loadingDim : 1;
+      controls.frozen     = v;
+      loadingObj.visible  = v;
+      wallPanelObj.visible = !v;
     },
     dispose() {
       cancelAnimationFrame(raf);

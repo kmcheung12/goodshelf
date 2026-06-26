@@ -33,7 +33,7 @@
       {#if book.coverUrl}
         <img class="cover" src={book.coverUrl} alt="Cover of {book.title}" />
       {:else}
-        <div class="cover-placeholder" />
+        <div class="cover-placeholder"></div>
       {/if}
     </div>
 
