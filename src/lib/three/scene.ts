@@ -91,8 +91,28 @@ export function initScene(
   loadingObj.visible = false; // CSS2DRenderer respects Object3D.visible
   scene.add(loadingObj);
 
-  const controls = new Controls(camera, Math.PI); // start facing the doorway (+Z)
+  const isMobile = 'ontouchstart' in window;
+  const controls = new Controls(camera, Math.PI, isMobile); // start facing the doorway (+Z)
   controls.attach(canvas);
+
+  controls.onTap = (x, y) => {
+    if (inspectedMesh) { exitInspect(); return; }
+    const hit = raycastAt(x, y);
+    if (hit?.userData.bookData) {
+      setPeek(hit);
+      onBookHover?.(hit.userData.bookData);
+      onBookSelect?.(hit.userData.bookData);
+    } else {
+      setPeek(null);
+      onBookHover?.(null);
+      onBookSelect?.(null);
+    }
+  };
+
+  controls.onDoubleTap = (x, y) => {
+    const hit = raycastAt(x, y);
+    if (hit?.userData.bookData) enterInspect(hit);
+  };
 
   let bookGroup:  THREE.Group | null = null;
   let bookMeshMap = new Map<string, THREE.Mesh>();
@@ -203,6 +223,18 @@ export function initScene(
   const raycaster = new THREE.Raycaster();
   const centre = new THREE.Vector2(0, 0);
 
+  const _ndc = new THREE.Vector2();
+  function raycastAt(clientX: number, clientY: number): THREE.Mesh | null {
+    if (!bookGroup) return null;
+    _ndc.set(
+      (clientX / window.innerWidth) * 2 - 1,
+      -(clientY / window.innerHeight) * 2 + 1,
+    );
+    raycaster.setFromCamera(_ndc, camera);
+    const hits = raycaster.intersectObjects(bookGroup.children, true);
+    return hits.length > 0 ? hits[0].object as THREE.Mesh : null;
+  }
+
   let pointerDownAt = { x: 0, y: 0 };
   const onPointerDown = (e: PointerEvent) => {
     pointerDownAt = { x: e.clientX, y: e.clientY };
@@ -224,7 +256,7 @@ export function initScene(
     if (Math.sqrt(dx * dx + dy * dy) > DRAG_THRESHOLD_PX) return;
 
     // Click during inspect → return book to shelf and re-enter free-look
-    if (inspectedMesh) { exitInspect(); canvas.requestPointerLock(); return; }
+    if (inspectedMesh) { exitInspect(); if (!isMobile) canvas.requestPointerLock(); return; }
 
     if (!controls.isLocked) return;
 
