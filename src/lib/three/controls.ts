@@ -9,7 +9,8 @@ import { debugState } from './debug';
 export class Controls {
   private yaw: number;
   private pitch = 0;
-  private targetYaw: number | null = null;
+  private targetYaw:   number | null = null;
+  private targetPitch: number | null = null;
   private canvas: HTMLCanvasElement | null = null;
   private keys = new Set<string>();
   public isLocked = false;
@@ -62,7 +63,8 @@ export class Controls {
 
   private onMouseMove = (e: MouseEvent) => {
     if (!this.isLocked || this.frozen) return;
-    this.targetYaw = null; // user took control — cancel programmatic turn
+    this.targetYaw   = null; // user took control — cancel programmatic pan
+    this.targetPitch = null;
     this.yaw -= e.movementX * LOOK_SENSITIVITY;
     this.pitch -= e.movementY * LOOK_SENSITIVITY;
     this.pitch = Math.max(-PITCH_LIMIT, Math.min(PITCH_LIMIT, this.pitch));
@@ -83,21 +85,42 @@ export class Controls {
     const dy = target.y - this.camera.position.y;
     const dz = target.z - this.camera.position.z;
     const horizDist = Math.sqrt(dx * dx + dz * dz);
-    this.yaw = Math.atan2(-dx, -dz);
-    this.pitch = -Math.atan2(dy, horizDist);
+    this.targetYaw   = null;
+    this.targetPitch = null;
+    this.yaw   = Math.atan2(-dx, -dz);
+    this.pitch = Math.atan2(dy, horizDist);
+  }
+
+  smoothLookAt(target: THREE.Vector3) {
+    const dx = target.x - this.camera.position.x;
+    const dy = target.y - this.camera.position.y;
+    const dz = target.z - this.camera.position.z;
+    const horizDist = Math.sqrt(dx * dx + dz * dz);
+    this.targetYaw   = Math.atan2(-dx, -dz);
+    this.targetPitch = Math.atan2(dy, horizDist);
   }
 
   update() {
-    // Programmatic yaw animation (used for the doorway→books 180° turn)
+    // Programmatic yaw animation
     if (this.targetYaw !== null) {
       let d = this.targetYaw - this.yaw;
-      // Normalise to [−π, π] so we always take the short arc
-      d = ((d + Math.PI) % (2 * Math.PI)) - Math.PI;
+      d = d - 2 * Math.PI * Math.round(d / (2 * Math.PI)); // shortest arc, works for any accumulated yaw
       if (Math.abs(d) < 0.003) {
         this.yaw = this.targetYaw;
         this.targetYaw = null;
       } else {
         this.yaw += d * debugState.yawTurnSpeed;
+      }
+    }
+
+    // Programmatic pitch animation
+    if (this.targetPitch !== null) {
+      const d = this.targetPitch - this.pitch;
+      if (Math.abs(d) < 0.003) {
+        this.pitch = this.targetPitch;
+        this.targetPitch = null;
+      } else {
+        this.pitch += d * debugState.yawTurnSpeed;
       }
     }
 

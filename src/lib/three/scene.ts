@@ -5,6 +5,7 @@ import { buildShelves } from './shelves';
 import { buildLighting } from './lighting';
 import { Controls } from './controls';
 import { placeBooks } from './ShelfLayout';
+import type { PlaceBooksResult } from './ShelfLayout';
 import { buildDebugGUI } from './debug';
 import type { BookData } from '../adapters/types';
 import {
@@ -34,12 +35,14 @@ export interface SceneHandle {
 }
 
 export type BookHoverCallback = (book: BookData | null) => void;
+export type BooksPlacedCallback = (read: BookData[], toRead: BookData[], current: BookData[]) => void;
 
 export function initScene(
   canvas: HTMLCanvasElement,
   onBookSelect?: (book: BookData | null) => void,
   onInspectChange?: (inspecting: boolean) => void,
   onBookHover?: BookHoverCallback,
+  onBooksPlaced?: BooksPlacedCallback,
 ): SceneHandle {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -120,9 +123,10 @@ export function initScene(
         }
       });
     }
-    const result = placeBooks(scene, lastBooks.read, lastBooks.toRead, lastBooks.current);
+    const result: PlaceBooksResult = placeBooks(scene, lastBooks.read, lastBooks.toRead, lastBooks.current);
     bookGroup   = result.group;
     bookMeshMap = result.meshMap;
+    onBooksPlaced?.(result.placedRead, result.placedToRead, result.placedCurrent);
   }
 
   function rebuildAll() {
@@ -183,7 +187,6 @@ export function initScene(
     onInspectChange?.(false);
     _lastHovered = null;
     onBookHover?.(null);
-    canvas.requestPointerLock();
   }
 
   // ── Input handlers ─────────────────────────────────────────────────────────
@@ -220,8 +223,8 @@ export function initScene(
     const dy = e.clientY - pointerDownAt.y;
     if (Math.sqrt(dx * dx + dy * dy) > DRAG_THRESHOLD_PX) return;
 
-    // Click during inspect → return book to shelf
-    if (inspectedMesh) { exitInspect(); return; }
+    // Click during inspect → return book to shelf and re-enter free-look
+    if (inspectedMesh) { exitInspect(); canvas.requestPointerLock(); return; }
 
     if (!controls.isLocked) return;
 
@@ -417,14 +420,18 @@ export function initScene(
     },
     lookAtBook(bookId: string) {
       const mesh = bookMeshMap.get(bookId);
-      if (mesh) controls.lookAt(mesh.position);
+      if (mesh) controls.smoothLookAt(mesh.position);
     },
     peekBook(bookId: string | null) {
       setPeek(bookId ? (bookMeshMap.get(bookId) ?? null) : null);
     },
     inspectBook(bookId: string) {
       const mesh = bookMeshMap.get(bookId);
-      if (mesh) { controls.lookAt(mesh.position); enterInspect(mesh); }
+      if (!mesh) return;
+      if (mesh === inspectedMesh) { exitInspect(); return; }
+      const lookTarget = (mesh.userData.basePos as THREE.Vector3 | undefined) ?? mesh.position;
+      controls.lookAt(lookTarget);
+      enterInspect(mesh);
     },
     turnToBooks() {
       controls.animateYawTo(0); // face back wall (−Z)

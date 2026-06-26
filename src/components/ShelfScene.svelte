@@ -26,6 +26,9 @@
   let inspecting = false;
   let hoveredBook: BookData | null = null;
   let showPanel = false;
+  let placedReadBooks: BookData[] = [];
+  let placedToReadBooks: BookData[] = [];
+  let placedCurrentlyReadingBooks: BookData[] = [];
 
   // Keep store in sync with props so WallPanel stays reactive
   $: wallPanelStore.update(s => ({ ...s, currentUserId, error }));
@@ -43,6 +46,11 @@
       onBookSelect,
       (v) => { inspecting = v; },
       (book) => { hoveredBook = book; },
+      (read, toRead, current) => {
+        placedReadBooks = read;
+        placedToReadBooks = toRead;
+        placedCurrentlyReadingBooks = current;
+      },
     );
 
     wrapper.appendChild(handle.overlayElement);
@@ -83,9 +91,9 @@
 
 {#if showPanel}
 <BookPanel
-  {readBooks}
-  {toReadBooks}
-  {currentlyReadingBooks}
+  readBooks={placedReadBooks}
+  toReadBooks={placedToReadBooks}
+  currentlyReadingBooks={placedCurrentlyReadingBooks}
   {hoveredBook}
   {locked}
   onLookAt={(id) => { handle?.lookAtBook(id); handle?.peekBook(id); }}

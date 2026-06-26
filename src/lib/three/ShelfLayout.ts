@@ -10,13 +10,16 @@ import {
 } from './constants';
 import { debugState } from './debug';
 
-// Row fill order: middle outward → e.g. [4,5,3,6,2,7,1,8,0,9] for 10 rows
+// Row fill order: middle outward → [5,4,6,3,7,2,8,1,9,0] for 10 rows.
+// Works for both even and odd totals.
 function rowFillOrder(total: number): number[] {
-  const mid = Math.floor(total / 2);
   const order: number[] = [];
-  for (let i = 0; i < total; i++) {
-    const r = i % 2 === 0 ? mid - Math.floor(i / 2) : mid + Math.ceil(i / 2);
-    if (r >= 0 && r < total) order.push(r);
+  let lo = Math.floor((total - 1) / 2);
+  let hi = lo + 1;
+  if (total % 2 === 1) { order.push(lo); lo--; }
+  while (lo >= 0 || hi < total) {
+    if (hi < total) order.push(hi++);
+    if (lo >= 0)    order.push(lo--);
   }
   return order;
 }
@@ -76,28 +79,38 @@ function placeMesh(
   meshMap.set(book.id, mesh);
 }
 
-function addBackWallBooks(
+// Cursor within a wall: which row in the fill-order array we're on,
+// and how far along the row's linear axis the last book ended.
+interface WallCursor { rowOrderIdx: number; pos: number }
+
+// Fill the back wall starting from a saved cursor position.
+// Returns how many books were placed and the updated cursor.
+function fillBackWall(
   group: THREE.Group,
   meshMap: Map<string, THREE.Mesh>,
   books: BookData[],
-): void {
-  const baseZ = -ROOM_HALF_D + CASE_DEPTH / 2;
+  cursor: WallCursor,
+): { placed: number; cursor: WallCursor } {
+  const rowOrder = rowFillOrder(SHELF_ROWS);
   const fullHalf = ROOM_HALF_W - WALL_THICKNESS / 2;
-  const usableHalf = fullHalf * debugState.shelfWidthScale;
-  const xMin = -usableHalf;
-  const xMax = usableHalf;
-  let bookIndex = 0;
+  const xMax = fullHalf * debugState.shelfWidthScale;
+  const xMin = -xMax;
+  const baseZ = -ROOM_HALF_D + CASE_DEPTH / 2;
 
-  for (const r of rowFillOrder(SHELF_ROWS)) {
+  let bookIndex = 0;
+  let { rowOrderIdx, pos } = cursor;
+
+  for (; rowOrderIdx < rowOrder.length; rowOrderIdx++) {
     if (bookIndex >= books.length) break;
+    const r = rowOrder[rowOrderIdx];
     const shelfY = SHELF_Y0 + r * SHELF_DY + SHELF_PLANK_THICKNESS;
-    let x = xMin;
+    let x = pos;
 
     while (bookIndex < books.length) {
       const book = books[bookIndex];
       const seed  = stableHash(book.id);
       const t     = bookThickness(book);
-      if (x + t > xMax) break;
+      if (x + t > xMax) { pos = xMin; break; }
 
       const h     = bookHeight(seed);
       const depth = depthVariation(seed);
@@ -105,15 +118,22 @@ function addBackWallBooks(
       x += t;
       bookIndex++;
     }
+
+    if (bookIndex >= books.length) { pos = x; break; }
   }
+
+  return { placed: bookIndex, cursor: { rowOrderIdx, pos } };
 }
 
-function addSideWallBooks(
+// Fill a side wall starting from a saved cursor position.
+function fillSideWall(
   group: THREE.Group,
   meshMap: Map<string, THREE.Mesh>,
   books: BookData[],
   side: 'left' | 'right',
-): void {
+  cursor: WallCursor,
+): { placed: number; cursor: WallCursor } {
+  const rowOrder = rowFillOrder(SHELF_ROWS);
   const sideX = side === 'left'
     ? -ROOM_HALF_W + CASE_DEPTH / 2
     : ROOM_HALF_W - CASE_DEPTH / 2;
@@ -125,18 +145,21 @@ function addSideWallBooks(
   const halfDepth = ((fullZMax - fullZMin) / 2) * debugState.shelfWidthScale;
   const zMin = zCenter - halfDepth;
   const zMax = zCenter + halfDepth;
-  let bookIndex = 0;
 
-  for (const r of rowFillOrder(SHELF_ROWS)) {
+  let bookIndex = 0;
+  let { rowOrderIdx, pos } = cursor;
+
+  for (; rowOrderIdx < rowOrder.length; rowOrderIdx++) {
     if (bookIndex >= books.length) break;
+    const r = rowOrder[rowOrderIdx];
     const shelfY = SHELF_Y0 + r * SHELF_DY + SHELF_PLANK_THICKNESS;
-    let z = zMin;
+    let z = pos;
 
     while (bookIndex < books.length) {
       const book = books[bookIndex];
       const seed  = stableHash(book.id);
       const t     = bookThickness(book);
-      if (z + t > zMax) break;
+      if (z + t > zMax) { pos = zMin; break; }
 
       const h     = bookHeight(seed);
       const depth = depthVariation(seed);
@@ -145,23 +168,76 @@ function addSideWallBooks(
       z += t;
       bookIndex++;
     }
+
+    if (bookIndex >= books.length) { pos = z; break; }
   }
+
+  return { placed: bookIndex, cursor: { rowOrderIdx, pos } };
 }
 
-// Wall assignment: back (centre) = read, left = currently-reading, right = to-read
+export interface PlaceBooksResult {
+  group: THREE.Group;
+  meshMap: Map<string, THREE.Mesh>;
+  placedRead: BookData[];
+  placedToRead: BookData[];
+  placedCurrent: BookData[];
+}
+
+// Wall assignment: back (centre) = read, left = currently-reading, right = to-read.
+// Books that overflow their primary wall spill onto other walls with remaining space.
 export function placeBooks(
   scene: THREE.Scene,
   readBooks: BookData[],
   toReadBooks: BookData[],
   currentlyReadingBooks: BookData[],
-): { group: THREE.Group; meshMap: Map<string, THREE.Mesh> } {
+): PlaceBooksResult {
   const group   = new THREE.Group();
   const meshMap = new Map<string, THREE.Mesh>();
 
-  addSideWallBooks(group, meshMap, currentlyReadingBooks, 'left');
-  addBackWallBooks(group, meshMap, readBooks);
-  addSideWallBooks(group, meshMap, toReadBooks, 'right');
+  // Compute initial cursor positions for each wall
+  const fullHalf = ROOM_HALF_W - WALL_THICKNESS / 2;
+  const backXMin = -(fullHalf * debugState.shelfWidthScale);
+  const fullZMin = -ROOM_HALF_D + CORNER_GAP + WALL_THICKNESS / 2;
+  const fullZMax = ROOM_HALF_D - WALL_THICKNESS / 2;
+  const zCenter  = (fullZMin + fullZMax) / 2;
+  const sideZMin = zCenter - ((fullZMax - fullZMin) / 2) * debugState.shelfWidthScale;
+
+  // Primary fill: each shelf category on its designated wall
+  const leftFill  = fillSideWall(group, meshMap, currentlyReadingBooks, 'left',  { rowOrderIdx: 0, pos: sideZMin });
+  const backFill  = fillBackWall(group, meshMap, readBooks,                       { rowOrderIdx: 0, pos: backXMin });
+  const rightFill = fillSideWall(group, meshMap, toReadBooks,            'right', { rowOrderIdx: 0, pos: sideZMin });
+
+  // Overflow fill: any books not placed go onto walls with remaining capacity.
+  // Overflow order preserves original category order (currently-reading → read → to-read).
+  const overflow = [
+    ...currentlyReadingBooks.slice(leftFill.placed),
+    ...readBooks.slice(backFill.placed),
+    ...toReadBooks.slice(rightFill.placed),
+  ];
+
+  if (overflow.length > 0) {
+    let remaining = overflow;
+
+    const passes: Array<() => number> = [
+      () => { const r = fillSideWall(group, meshMap, remaining, 'left',  leftFill.cursor);  leftFill.cursor  = r.cursor; return r.placed; },
+      () => { const r = fillBackWall(group, meshMap, remaining,          backFill.cursor);  backFill.cursor  = r.cursor; return r.placed; },
+      () => { const r = fillSideWall(group, meshMap, remaining, 'right', rightFill.cursor); rightFill.cursor = r.cursor; return r.placed; },
+    ];
+
+    for (const pass of passes) {
+      if (remaining.length === 0) break;
+      const placed = pass();
+      remaining = remaining.slice(placed);
+    }
+  }
 
   scene.add(group);
-  return { group, meshMap };
+
+  return {
+    group,
+    meshMap,
+    placedRead:    readBooks.filter(b => meshMap.has(b.id)),
+    placedToRead:  toReadBooks.filter(b => meshMap.has(b.id)),
+    placedCurrent: currentlyReadingBooks.filter(b => meshMap.has(b.id)),
+  };
 }
