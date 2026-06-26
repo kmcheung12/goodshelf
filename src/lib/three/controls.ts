@@ -134,7 +134,7 @@ export class Controls {
       const t  = e.touches[0];
       const dx = t.clientX - this.lastTouchX;
       const dy = t.clientY - this.lastTouchY;
-      this.targetYaw   = null;
+      this.targetYaw   = null; // user took control — cancel programmatic pan
       this.targetPitch = null;
       this.yaw   -= dx * LOOK_SENSITIVITY;
       this.pitch -= dy * LOOK_SENSITIVITY;
@@ -153,6 +153,14 @@ export class Controls {
   };
 
   private onTouchEnd = (e: TouchEvent) => {
+    // Sync lastTouchX/Y to remaining finger so next drag starts clean
+    if (e.touches.length === 1) {
+      this.lastTouchX     = e.touches[0].clientX;
+      this.lastTouchY     = e.touches[0].clientY;
+      this.touchStartX    = e.touches[0].clientX;
+      this.touchStartY    = e.touches[0].clientY;
+      this.touchStartTime = Date.now();
+    }
     if (e.changedTouches.length === 0) return;
     const t        = e.changedTouches[0];
     const dx       = t.clientX - this.touchStartX;
@@ -199,6 +207,7 @@ export class Controls {
   }
 
   update() {
+    // Programmatic yaw animation
     if (this.targetYaw !== null) {
       let d = this.targetYaw - this.yaw;
       d = d - 2 * Math.PI * Math.round(d / (2 * Math.PI));
@@ -210,6 +219,7 @@ export class Controls {
       }
     }
 
+    // Programmatic pitch animation
     if (this.targetPitch !== null) {
       const d = this.targetPitch - this.pitch;
       if (Math.abs(d) < 0.003) {
@@ -220,6 +230,7 @@ export class Controls {
       }
     }
 
+    // Apply yaw + pitch to camera quaternion
     this._euler.set(this.pitch, this.yaw, 0);
     this.camera.quaternion.setFromEuler(this._euler);
 
