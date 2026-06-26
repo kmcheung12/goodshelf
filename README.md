@@ -11,6 +11,13 @@ Maybe later.
 
 
 
+### Demo site
+[Goodshelf](https://geo-dude.com/goodshelf)
+
+### Screenshot
+
+![Screenshot](Screenshot.png)
+
 ### Data source
 Goodreads rss
 
@@ -18,7 +25,10 @@ Goodreads rss
 - https://www.goodreads.com/review/list_rss/{USERID}?per-page=200&&shelf=to-read
 - https://www.goodreads.com/review/list_rss/{USERID}?per-page=200&&shelf=read
 
-Goodreads rss limits 200 books per shelf
+Goodreads rss limits 200 books per shelf.
+
+The rss urls have CORS restriction. So either run from a browser extension, or go through a server proxy.
+
 
 ---
 
