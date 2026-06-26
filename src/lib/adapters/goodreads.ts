@@ -42,16 +42,6 @@ export class GoodreadsAdapter implements IBookAdapter {
     const shelfPart = this.shelf ? `&shelf=${encodeURIComponent(this.shelf)}` : '';
     const pagePart  = page > 1 ? `&page=${page}` : '';
 
-    // Try direct Goodreads fetch first (works without the proxy running).
-    try {
-      const directUrl = `https://www.goodreads.com/review/list_rss/${this.userId}?per_page=${PER_PAGE}${shelfPart}${pagePart}`;
-      const res = await fetch(directUrl);
-      if (res.ok) return res.text();
-    } catch {
-      // CORS or network failure — fall through to proxy
-    }
-
-    // Proxy fallback (needed when Goodreads blocks direct browser requests).
     const proxyUrl = `${PROXY_URL}/rss?userId=${this.userId}${shelfPart}&per_page=${PER_PAGE}${pagePart}`;
     const res = await fetch(proxyUrl);
     if (!res.ok) throw new Error(`Proxy error: HTTP ${res.status}`);
