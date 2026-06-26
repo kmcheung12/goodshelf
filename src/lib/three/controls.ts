@@ -4,20 +4,29 @@ import {
   CAM_XMIN, CAM_XMAX, CAM_ZMIN, CAM_ZMAX,
   CAM_FOV_MIN, CAM_FOV_MAX, SCROLL_ZOOM_SPEED,
 } from './constants';
+import { debugState } from './debug';
 
 export class Controls {
-  private yaw = 0;
+  private yaw: number;
   private pitch = 0;
+  private targetYaw: number | null = null;
   private canvas: HTMLCanvasElement | null = null;
   private keys = new Set<string>();
   public isLocked = false;
+  public frozen   = false;
 
   private readonly _euler = new THREE.Euler(0, 0, 0, 'YXZ');
   private readonly _yawEuler = new THREE.Euler(0, 0, 0, 'YXZ');
   private readonly _quat = new THREE.Quaternion();
   private readonly _dir = new THREE.Vector3();
 
-  constructor(private camera: THREE.PerspectiveCamera) {}
+  constructor(private camera: THREE.PerspectiveCamera, initialYaw = 0) {
+    this.yaw = initialYaw;
+  }
+
+  animateYawTo(target: number) {
+    this.targetYaw = target;
+  }
 
   attach(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
@@ -52,7 +61,8 @@ export class Controls {
   };
 
   private onMouseMove = (e: MouseEvent) => {
-    if (!this.isLocked) return;
+    if (!this.isLocked || this.frozen) return;
+    this.targetYaw = null; // user took control — cancel programmatic turn
     this.yaw -= e.movementX * LOOK_SENSITIVITY;
     this.pitch -= e.movementY * LOOK_SENSITIVITY;
     this.pitch = Math.max(-PITCH_LIMIT, Math.min(PITCH_LIMIT, this.pitch));
@@ -78,12 +88,25 @@ export class Controls {
   }
 
   update() {
+    // Programmatic yaw animation (used for the doorway→books 180° turn)
+    if (this.targetYaw !== null) {
+      let d = this.targetYaw - this.yaw;
+      // Normalise to [−π, π] so we always take the short arc
+      d = ((d + Math.PI) % (2 * Math.PI)) - Math.PI;
+      if (Math.abs(d) < 0.003) {
+        this.yaw = this.targetYaw;
+        this.targetYaw = null;
+      } else {
+        this.yaw += d * debugState.yawTurnSpeed;
+      }
+    }
+
     // Apply yaw + pitch to camera quaternion
     this._euler.set(this.pitch, this.yaw, 0);
     this.camera.quaternion.setFromEuler(this._euler);
 
     // WASD movement in camera-local XZ
-    if (!this.isLocked) return;
+    if (!this.isLocked || this.frozen) return;
     this._dir.set(0, 0, 0);
     if (this.keys.has('KeyW') || this.keys.has('ArrowUp'))    this._dir.z -= 1;
     if (this.keys.has('KeyS') || this.keys.has('ArrowDown'))  this._dir.z += 1;

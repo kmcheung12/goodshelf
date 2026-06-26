@@ -45,6 +45,14 @@ export const COLOR_CEILING = '#f2efe7';
 // Room geometry
 export const WALL_THICKNESS = 0.05;
 
+// Doorway (fourth/front wall)
+export const DOOR_W        = 0.52;   // opening width
+export const DOOR_H        = 2.05;   // opening height (floor to lintel)
+export const DOOR_FRAME_T  = 0.04;   // frame/trim thickness
+export const CORRIDOR_D    = 0.35;   // depth of corridor stub beyond the door
+export const COLOR_DOORFRAME = '#1a1917'; // dark frame trim
+export const COLOR_CORRIDOR  = '#111110'; // corridor back wall
+
 // Lighting
 export const HEMI_SKY = '#fff3df';
 export const HEMI_GROUND = '#241f17';
@@ -85,8 +93,15 @@ export const INSPECT_POS_LERP = 0.10;
 export const INSPECT_ROT_LERP = 0.10;
 export const SPINE_CANVAS_W = 76;         // px
 export const SPINE_CANVAS_H = 540;        // px
-export const SPINE_ROUGHNESS = 0.55;
+export const SPINE_ROUGHNESS_MIN = 0.35;  // per-book roughness range
+export const SPINE_ROUGHNESS_MAX = 0.75;
 export const SPINE_METALNESS = 0.03;
+export const SPINE_NORMAL_SCALE = 0.1;   // normalMap intensity
+export const SPINE_CURVE_ANGLE = 20;     // degrees of convex arc across spine width
+export const SPINE_GRAIN_STRENGTH = 12;  // normal-map noise amplitude (0–255 scale)
+export const SPINE_EDGE_DARKEN = 0.78;   // alpha of edge-shadow overlay on color canvas
+export const SPINE_NORMAL_W = 32;        // px — normal map canvas size
+export const SPINE_NORMAL_H = 128;       // px
 
 // Spine color palette (30 colours, seeded by book index)
 export const SPINE_PALETTE = [
@@ -99,6 +114,16 @@ export const SPINE_PALETTE = [
   '#81b29a', '#f2cc8f', '#e07a5f', '#8ecae6',
   '#f4f1de', '#2d3142',
 ] as const;
+
+// Debug defaults
+export const DEBUG_YAW_TURN_SPEED       = 0.015;
+export const DEBUG_LOADING_DIM          = 0.15;  // light scale during loading
+export const DEBUG_SHADOW_RADIUS        = 3;
+export const DEBUG_HEIGHT_SCALE         = 1;
+export const DEBUG_DEPTH_SCALE          = 1;
+export const DEBUG_SHELF_WIDTH_SCALE    = 0.85;
+export const DEBUG_INSPECT_FILL        = 0.3;
+export const DEBUG_LUMINANCE_THRESHOLD  = 0.10;
 
 // Shelf capacity (derived from room geometry)
 // Back wall: (ROOM_HALF_W*2 - WALL_THICKNESS) / SPINE_THICKNESS ≈ 62

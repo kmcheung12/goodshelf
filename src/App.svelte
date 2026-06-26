@@ -1,26 +1,31 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { fade } from 'svelte/transition';
   import ShelfScene from './components/ShelfScene.svelte';
-  import Intro from './components/Intro.svelte';
   import BookDetail from './components/BookDetail.svelte';
-  import LoadingBook from './components/LoadingBook.svelte';
   import { GoodreadsAdapter } from './lib/adapters/goodreads';
   import type { BookData } from './lib/adapters/types';
 
-  let entered = false;
-  let loading = false;
+  type Phase = 'landing' | 'loading' | 'browsing';
+
+  let phase: Phase = 'landing';
   let error = '';
   let userId = '';
+  let sceneApi: { turnToBooks: () => void } | undefined;
   let readBooks: BookData[] = [];
   let toReadBooks: BookData[] = [];
   let currentlyReadingBooks: BookData[] = [];
   let selectedBook: BookData | null = null;
 
+  const isExtension = import.meta.env.VITE_IS_EXTENSION === 'true';
+
   async function handleEnter(id: string) {
-    loading = true;
+    if (id === userId && phase === 'browsing') {
+      sceneApi?.turnToBooks();
+      return;
+    }
+    phase = 'loading';
     error = '';
-    history.replaceState(null, '', `/${id}`);
+    history.replaceState(null, '', isExtension ? `#${id}` : `/${id}`);
     try {
       const [read, toRead, currentlyReading] = await Promise.all([
         new GoodreadsAdapter(id, 'read').getBooks(),
@@ -32,17 +37,21 @@
       toReadBooks = toRead;
       currentlyReadingBooks = currentlyReading;
       userId = id;
-      entered = true;
+      phase = 'browsing';
     } catch (e) {
       error = e instanceof Error ? e.message : 'Failed to load shelf';
-    } finally {
-      loading = false;
+      phase = 'landing';
     }
   }
 
   onMount(() => {
-    const match = window.location.pathname.match(/^\/(\d+)\/?$/);
-    if (match) handleEnter(match[1]);
+    if (isExtension) {
+      const hash = window.location.hash.replace(/^#/, '');
+      if (/^\d+$/.test(hash)) handleEnter(hash);
+    } else {
+      const match = window.location.pathname.match(/^\/(\d+)\/?$/);
+      if (match) handleEnter(match[1]);
+    }
   });
 </script>
 
@@ -52,37 +61,10 @@
   {currentlyReadingBooks}
   onBookSelect={(book) => selectedBook = book}
   onWallEnter={handleEnter}
-  wallLoading={loading}
+  onSceneReady={(api) => { sceneApi = api; }}
+  {phase}
   currentUserId={userId}
+  {error}
 />
 
-<!-- Intro overlay only shown before first load; wall panel handles subsequent changes -->
-{#if !entered}
-  <Intro onEnter={handleEnter} />
-  {#if error}
-    <div class="fetch-error">{error}</div>
-  {/if}
-{/if}
-
-{#if loading}
-  <div out:fade={{ duration: 500 }}>
-    <LoadingBook />
-  </div>
-{/if}
-
 <BookDetail book={selectedBook} onClose={() => selectedBook = null} />
-
-<style>
-  .fetch-error {
-    position: fixed;
-    bottom: 60px;
-    left: 50%;
-    transform: translateX(-50%);
-    color: #ef8585;
-    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
-    font-size: 13px;
-    z-index: 101;
-    text-align: center;
-    max-width: 320px;
-  }
-</style>

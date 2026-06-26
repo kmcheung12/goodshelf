@@ -2,9 +2,11 @@
   import { onMount, onDestroy } from 'svelte';
   import { mount } from 'svelte';
   import { initScene, type SceneHandle } from '../lib/three/scene';
+  import { wallPanelStore } from '../lib/wallPanelStore';
   import type { BookData } from '../lib/adapters/types';
   import Crosshair from './Crosshair.svelte';
   import WallPanel from './WallPanel.svelte';
+  import ShelfLoader from './ShelfLoader.svelte';
   import BookPanel from './BookPanel.svelte';
 
   export let readBooks: BookData[] = [];
@@ -12,15 +14,27 @@
   export let currentlyReadingBooks: BookData[] = [];
   export let onBookSelect: (book: BookData | null) => void = () => {};
   export let onWallEnter: (userId: string) => void = () => {};
-  export let wallLoading = false;
+  export let onSceneReady: ((api: { turnToBooks: () => void }) => void) | undefined = undefined;
+  export let phase: 'landing' | 'loading' | 'browsing' = 'landing';
   export let currentUserId = '';
+  export let error = '';
 
   let canvas: HTMLCanvasElement;
   let wrapper: HTMLDivElement;
-  let handle: SceneHandle;
+  let handle: SceneHandle | undefined;
   let locked = false;
   let inspecting = false;
   let hoveredBook: BookData | null = null;
+  let showPanel = false;
+
+  // Keep store in sync with props so WallPanel stays reactive
+  $: wallPanelStore.update(s => ({ ...s, currentUserId, error }));
+
+  // React to phase changes once the scene is ready
+  $: if (handle) {
+    handle.setLoading(phase === 'loading');
+    if (phase === 'browsing') handle.turnToBooks();
+  }
 
   onMount(() => {
     handle = initScene(
@@ -34,11 +48,29 @@
 
     mount(WallPanel, {
       target: handle.wallPanelElement,
-      props: { onEnter: onWallEnter, loading: wallLoading, currentUserId },
+      props: { onEnter: onWallEnter },
     });
 
-    const interval = setInterval(() => { locked = handle.controls.isLocked; }, 100);
-    return () => clearInterval(interval);
+    mount(ShelfLoader, { target: handle.loadingElement });
+
+    // Apply initial phase state (handle may not have existed when $: ran)
+    handle.setLoading(phase === 'loading');
+
+    onSceneReady?.({ turnToBooks: () => handle!.turnToBooks() });
+
+    const interval = setInterval(() => { locked = handle!.controls.isLocked; }, 100);
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.code === 'KeyF' && handle!.controls.isLocked) {
+        showPanel = !showPanel;
+      }
+    };
+    document.addEventListener('keydown', onKeyDown);
+
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('keydown', onKeyDown);
+    };
   });
 
   $: if (handle && (readBooks.length > 0 || toReadBooks.length > 0 || currentlyReadingBooks.length > 0)) {
@@ -48,6 +80,7 @@
   onDestroy(() => handle?.dispose());
 </script>
 
+{#if showPanel}
 <BookPanel
   {readBooks}
   {toReadBooks}
@@ -58,6 +91,7 @@
   onSelectBook={(book) => { hoveredBook = book; onBookSelect(book); }}
   onInspectBook={(book) => { handle?.inspectBook(book.id); }}
 />
+{/if}
 
 <div bind:this={wrapper} style="position:relative;width:100%;height:100vh;overflow:hidden;">
   <canvas bind:this={canvas} style="width:100%;height:100%;display:block;" />
@@ -80,7 +114,11 @@
   {#if inspecting}
     <div class="hint">Click anywhere to put it back · Move mouse to rotate</div>
   {:else if !locked}
-    <div class="hint">Click to look around · Scroll to zoom · WASD to move · Turn around for controls</div>
+    {#if phase === 'browsing'}
+      <div class="hint">Click to look around · Scroll to zoom · WASD to move · Turn around to search</div>
+    {:else}
+      <div class="hint">Click to look around</div>
+    {/if}
   {/if}
 </div>
 

@@ -12,19 +12,24 @@ import {
   CAM_NEAR, CAM_FAR, COLOR_SCENE_BG, TONE_MAPPING_EXPOSURE,
   BOOK_HOVER_OFFSET, BOOK_HOVER_LERP, DRAG_THRESHOLD_PX,
   BOOK_PEEK_OFFSET, BOOK_PEEK_TILT,
-  ROOM_HALF_D,
+  ROOM_HALF_D, CORRIDOR_D,
   INSPECT_DISTANCE, INSPECT_TILT_X, INSPECT_TILT_Y,
   INSPECT_POS_LERP, INSPECT_ROT_LERP,
 } from './constants';
+import { debugState } from './debug';
 
 export interface SceneHandle {
   controls: Controls;
   wallPanelElement: HTMLElement;
+  loadingElement: HTMLElement;
   overlayElement: HTMLElement;
   setBooks(readBooks: BookData[], toReadBooks: BookData[], currentlyReadingBooks: BookData[]): void;
   lookAtBook(bookId: string): void;
   peekBook(bookId: string | null): void;
   inspectBook(bookId: string): void;
+  turnToBooks(): void;
+  faceDoorway(): void;
+  setLoading(v: boolean): void;
   dispose(): void;
 }
 
@@ -62,13 +67,28 @@ export function initScene(
   let shelfGroup = buildShelves(scene);
   const keyLight = buildLighting(scene);
 
+  // Collect all scene lights now (before the inspect fill light is added) so we
+  // can dim them during loading without touching the fill light's own logic.
+  const dimLights: { light: THREE.Light; base: number }[] = [];
+  scene.traverse((o) => {
+    if (o instanceof THREE.Light) dimLights.push({ light: o, base: o.intensity });
+  });
+  let _lightScale       = 1;
+  let _targetLightScale = 1;
+
   const wallPanelEl = document.createElement('div');
   wallPanelEl.style.pointerEvents = 'auto';
   const wallPanelObj = new CSS2DObject(wallPanelEl);
-  wallPanelObj.position.set(0, CAM_START_Y, ROOM_HALF_D - 0.02);
+  wallPanelObj.position.set(0, CAM_START_Y, ROOM_HALF_D);
   scene.add(wallPanelObj);
 
-  const controls = new Controls(camera);
+  const loadingEl = document.createElement('div');
+  loadingEl.style.display = 'none';
+  const loadingObj = new CSS2DObject(loadingEl);
+  loadingObj.position.set(0, CAM_START_Y, ROOM_HALF_D);
+  scene.add(loadingObj);
+
+  const controls = new Controls(camera, Math.PI); // start facing the doorway (+Z)
   controls.attach(canvas);
 
   let bookGroup:  THREE.Group | null = null;
@@ -112,16 +132,29 @@ export function initScene(
 
   const gui = buildDebugGUI(keyLight, rebuildBooks, rebuildAll);
 
+  // ── Inspect fill light — follows camera, on only during inspect ────────────
+  // The book cover faces the camera when inspected, but the scene key light
+  // comes from above-behind, leaving the cover poorly lit. This fill light
+  // sits just behind the camera and illuminates the facing side directly.
+  const inspectFillLight = new THREE.PointLight('#fff8f0', 0, 0, 2);
+  scene.add(inspectFillLight);
+
   // ── Inspect state ──────────────────────────────────────────────────────────
   let inspectedMesh: THREE.Mesh | null = null;
   const inspectHoldPos = new THREE.Vector3();
-  let inspectBaseRotY = 0;
   let mouseX = window.innerWidth / 2;
   let mouseY = window.innerHeight / 2;
 
-  const _inspectEuler = new THREE.Euler(0, 0, 0, 'YXZ');
-  const _inspectQuat = new THREE.Quaternion();
-  const _inspectDir = new THREE.Vector3();
+  const _inspectDir      = new THREE.Vector3();
+  const _inspectQuat     = new THREE.Quaternion();
+  const _inspectBaseQuat = new THREE.Quaternion();
+  const _inspectTiltQuat = new THREE.Quaternion();
+  const _inspectTiltEul  = new THREE.Euler(0, 0, 0, 'YXZ');
+  const _inspectMatrix   = new THREE.Matrix4();
+  const _inspectBookX    = new THREE.Vector3();
+  const _inspectBookY    = new THREE.Vector3();
+  const _inspectBookZ    = new THREE.Vector3();
+  const _worldUp         = new THREE.Vector3(0, 1, 0);
 
   function enterInspect(mesh: THREE.Mesh) {
     // Return any previously inspected book to the shelf
@@ -131,17 +164,6 @@ export function initScene(
     setPeek(null);
     inspectedMesh = mesh;
     mesh.userData.inspecting = true;
-
-    // Hold position: directly in front of camera at eye level
-    camera.getWorldDirection(_inspectDir);
-    inspectHoldPos
-      .copy(camera.position)
-      .addScaledVector(_inspectDir, INSPECT_DISTANCE);
-    inspectHoldPos.y = camera.position.y;
-
-    // Rotate so +X face (front cover) faces the camera: θ = cameraYaw − π/2
-    _inspectEuler.setFromQuaternion(camera.quaternion, 'YXZ');
-    inspectBaseRotY = _inspectEuler.y - Math.PI / 2;
 
     mouseX = window.innerWidth / 2;
     mouseY = window.innerHeight / 2;
@@ -155,6 +177,7 @@ export function initScene(
     if (!inspectedMesh) return;
     inspectedMesh.userData.inspecting = false;
     inspectedMesh = null;
+    inspectFillLight.intensity = 0;
     onBookSelect?.(null);
     onInspectChange?.(false);
     _lastHovered = null;
@@ -181,7 +204,7 @@ export function initScene(
     pointerDownAt = { x: e.clientX, y: e.clientY };
   };
   // World position of the wall-panel CSS2DObject
-  const _wallPanelPos = new THREE.Vector3(0, CAM_START_Y, ROOM_HALF_D - 0.02);
+  const _wallPanelPos = new THREE.Vector3(0, CAM_START_Y, ROOM_HALF_D);
   const _toWall = new THREE.Vector3();
   const _camDir = new THREE.Vector3();
 
@@ -201,17 +224,23 @@ export function initScene(
 
     if (!controls.isLocked) return;
 
-    if (!bookGroup) { onBookSelect?.(null); return; }
-    raycaster.setFromCamera(centre, camera);
-    const hits = raycaster.intersectObjects(bookGroup.children, true);
-    if (hits.length > 0) {
-      const mesh = hits[0].object as THREE.Mesh;
-      if (mesh.userData.bookData) enterInspect(mesh);
-    } else {
+    // Check for book hit (only when books are placed)
+    let hitBook = false;
+    if (bookGroup) {
+      raycaster.setFromCamera(centre, camera);
+      const hits = raycaster.intersectObjects(bookGroup.children, true);
+      if (hits.length > 0) {
+        const mesh = hits[0].object as THREE.Mesh;
+        if (mesh.userData.bookData) { enterInspect(mesh); hitBook = true; }
+      }
+    }
+
+    // No book hit — check if crosshair is on the wall panel (works even before
+    // books are loaded, so the landing-phase input is always reachable with a click).
+    if (!hitBook) {
       onBookSelect?.(null);
-      // If crosshair is aimed at the wall panel, release pointer lock and
-      // focus the input so the user can type without pressing Escape first.
       if (isAimingAtWallPanel()) {
+        controls.animateYawTo(Math.PI); // centre camera on the doorway
         document.exitPointerLock();
         setTimeout(() => {
           wallPanelEl.querySelector<HTMLInputElement>('input')?.focus();
@@ -331,20 +360,41 @@ export function initScene(
       }
     }
 
-    // Inspect: fly book to hold position, tilt with mouse
+    // Inspect: fly book to hold position, face camera, tilt with mouse
     if (inspectedMesh) {
+      inspectFillLight.intensity = debugState.inspectFillIntensity;
+      inspectFillLight.position.copy(camera.position);
+
+      // Hold position: follow full camera direction including pitch
+      camera.getWorldDirection(_inspectDir);
+      inspectHoldPos.copy(camera.position).addScaledVector(_inspectDir, INSPECT_DISTANCE);
       inspectedMesh.position.lerp(inspectHoldPos, INSPECT_POS_LERP);
 
-      const nx = mouseX / window.innerWidth - 0.5;   // –0.5 … +0.5
+      // Base rotation: build an orthonormal basis so the +X face (cover) points
+      // toward the camera and the book stays upright.
+      //   bookX = -cameraDir  (cover faces viewer)
+      //   bookZ = worldUp × bookX  (lateral / spine direction)
+      //   bookY = bookZ × bookX   (recalculated up, orthogonal to both)
+      _inspectBookX.copy(_inspectDir).negate();
+      _inspectBookZ.crossVectors(_inspectBookX, _worldUp).normalize();
+      _inspectBookY.crossVectors(_inspectBookZ, _inspectBookX);
+      _inspectMatrix.makeBasis(_inspectBookX, _inspectBookY, _inspectBookZ);
+      _inspectBaseQuat.setFromRotationMatrix(_inspectMatrix);
+
+      // Mouse tilt applied in camera-relative space (multiply after base)
+      const nx = mouseX / window.innerWidth - 0.5;
       const ny = mouseY / window.innerHeight - 0.5;
-      _inspectEuler.set(
-        -ny * INSPECT_TILT_X,
-        inspectBaseRotY + nx * INSPECT_TILT_Y,
-        0,
-        'YXZ',
-      );
-      _inspectQuat.setFromEuler(_inspectEuler);
+      _inspectTiltEul.set(-ny * INSPECT_TILT_X, nx * INSPECT_TILT_Y, 0, 'YXZ');
+      _inspectTiltQuat.setFromEuler(_inspectTiltEul);
+      _inspectQuat.multiplyQuaternions(_inspectBaseQuat, _inspectTiltQuat);
+
       inspectedMesh.quaternion.slerp(_inspectQuat, INSPECT_ROT_LERP);
+    }
+
+    // Smooth light dimming (loading state)
+    if (Math.abs(_targetLightScale - _lightScale) > 0.001) {
+      _lightScale += (_targetLightScale - _lightScale) * 0.05;
+      for (const { light, base } of dimLights) light.intensity = base * _lightScale;
     }
 
     renderer.render(scene, camera);
@@ -355,6 +405,7 @@ export function initScene(
   return {
     controls,
     wallPanelElement: wallPanelEl,
+    loadingElement: loadingEl,
     overlayElement: css2d.domElement,
     setBooks(readBooks, toReadBooks, currentlyReadingBooks) {
       lastBooks = { read: readBooks, toRead: toReadBooks, current: currentlyReadingBooks };
@@ -370,6 +421,18 @@ export function initScene(
     inspectBook(bookId: string) {
       const mesh = bookMeshMap.get(bookId);
       if (mesh) { controls.lookAt(mesh.position); enterInspect(mesh); }
+    },
+    turnToBooks() {
+      controls.animateYawTo(0); // face back wall (−Z)
+    },
+    faceDoorway() {
+      controls.animateYawTo(Math.PI); // face front wall / doorway (+Z)
+    },
+    setLoading(v: boolean) {
+      _targetLightScale          = v ? debugState.loadingDim : 1;
+      controls.frozen            = v;
+      loadingEl.style.display    = v ? '' : 'none';
+      wallPanelEl.style.display  = v ? 'none' : '';
     },
     dispose() {
       cancelAnimationFrame(raf);
