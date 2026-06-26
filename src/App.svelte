@@ -17,6 +17,7 @@
   let selectedBook: BookData | null = null;
 
   const isExtension = import.meta.env.VITE_IS_EXTENSION === 'true';
+  const base = import.meta.env.BASE_URL;
 
   async function handleEnter(id: string) {
     if (id === userId && phase === 'browsing') {
@@ -25,7 +26,7 @@
     }
     phase = 'loading';
     error = '';
-    history.replaceState(null, '', isExtension ? `#${id}` : `/${id}`);
+    history.replaceState(null, '', isExtension ? `#${id}` : `${base}${id}`);
     try {
       const [read, toRead, currentlyReading] = await Promise.all([
         new GoodreadsAdapter(id, 'read').getBooks(),
@@ -49,7 +50,8 @@
       const hash = window.location.hash.replace(/^#/, '');
       if (/^\d+$/.test(hash)) handleEnter(hash);
     } else {
-      const match = window.location.pathname.match(/^\/(\d+)\/?$/);
+      const path = '/' + window.location.pathname.slice(base.length);
+      const match = path.match(/^\/(\d+)\/?$/);
       if (match) handleEnter(match[1]);
     }
   });
