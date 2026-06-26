@@ -43,6 +43,7 @@ app.get('/rss', async (req, res) => {
   const cached = getCached(key);
   if (cached) {
     res.setHeader('Content-Type', 'application/rss+xml; charset=utf-8');
+    res.setHeader('Cache-Control', 'public, max-age=86400');
     res.setHeader('X-Cache', 'HIT');
     return res.send(cached);
   }
@@ -58,6 +59,7 @@ app.get('/rss', async (req, res) => {
     const xml = await upstream.text();
     setCached(key, xml, RSS_TTL);
     res.setHeader('Content-Type', 'application/rss+xml; charset=utf-8');
+    res.setHeader('Cache-Control', 'public, max-age=86400');
     res.setHeader('X-Cache', 'MISS');
     res.send(xml);
   } catch (err) {
