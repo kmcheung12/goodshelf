@@ -1,7 +1,7 @@
 import type { IBookAdapter, BookData } from './types';
 import { parseGoodreadsRSS } from './rss-parser';
 
-const PROXY_URL    = import.meta.env.VITE_PROXY_URL ?? 'http://localhost:3001';
+const PROXY_URL    = import.meta.env.VITE_PROXY_URL ?? '';
 const IS_EXTENSION = import.meta.env.VITE_IS_EXTENSION === 'true';
 const PER_PAGE     = 200; // Goodreads RSS hard cap
 const MAX_PAGES    = 10;  // safety ceiling (2 000 books)

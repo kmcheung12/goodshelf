@@ -38,6 +38,12 @@ export default defineConfig(({ mode }) => {
           }
         : undefined,
     },
+    server: {
+      proxy: {
+        '/rss':   'http://localhost:3001',
+        '/cover': 'http://localhost:3001',
+      },
+    },
     plugins: [svelte(), ...(isExtension ? [copyManifest] : [])],
   };
 });

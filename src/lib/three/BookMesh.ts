@@ -198,7 +198,7 @@ const SHARED_BOOK_GEO: THREE.BufferGeometry = (() => {
   return geo;
 })();
 
-const PROXY_URL    = import.meta.env.VITE_PROXY_URL ?? 'http://localhost:3001';
+const PROXY_URL    = import.meta.env.VITE_PROXY_URL ?? '';
 const IS_EXTENSION = import.meta.env.VITE_IS_EXTENSION === 'true';
 
 const loader = new THREE.TextureLoader();

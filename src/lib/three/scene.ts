@@ -96,22 +96,22 @@ export function initScene(
   controls.attach(canvas);
 
   controls.onTap = (x, y) => {
+    setPeek(null);
+    onBookHover?.(null);
+    onBookSelect?.(null);
+    if (inspectedMesh) { exitInspect(); return; }
+    const hit = raycastAt(x, y);
+    if (hit?.userData.bookData) enterInspect(hit, false);
+  };
+
+  controls.onDoubleTap = (x, y) => {
     if (inspectedMesh) { exitInspect(); return; }
     const hit = raycastAt(x, y);
     if (hit?.userData.bookData) {
       setPeek(hit);
       onBookHover?.(hit.userData.bookData);
       onBookSelect?.(hit.userData.bookData);
-    } else {
-      setPeek(null);
-      onBookHover?.(null);
-      onBookSelect?.(null);
     }
-  };
-
-  controls.onDoubleTap = (x, y) => {
-    const hit = raycastAt(x, y);
-    if (hit?.userData.bookData) enterInspect(hit);
   };
 
   let bookGroup:  THREE.Group | null = null;
@@ -180,7 +180,7 @@ export function initScene(
   const _inspectBookZ    = new THREE.Vector3();
   const _worldUp         = new THREE.Vector3(0, 1, 0);
 
-  function enterInspect(mesh: THREE.Mesh) {
+  function enterInspect(mesh: THREE.Mesh, showDetail = true) {
     // Return any previously inspected book to the shelf
     if (inspectedMesh && inspectedMesh !== mesh) {
       inspectedMesh.userData.inspecting = false;
@@ -194,7 +194,7 @@ export function initScene(
     mouseY = window.innerHeight / 2;
 
     document.exitPointerLock();
-    onBookSelect?.(mesh.userData.bookData ?? null);
+    if (showDetail) onBookSelect?.(mesh.userData.bookData ?? null);
     onInspectChange?.(true);
   }
 
@@ -251,6 +251,7 @@ export function initScene(
   }
 
   const onPointerUp = (e: PointerEvent) => {
+    if (isMobile) return;
     const dx = e.clientX - pointerDownAt.x;
     const dy = e.clientY - pointerDownAt.y;
     if (Math.sqrt(dx * dx + dy * dy) > DRAG_THRESHOLD_PX) return;

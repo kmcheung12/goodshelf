@@ -30,6 +30,7 @@ export class Controls {
   private lastTapY = 0;
   private lastTapTime = 0;
   private pinchDist = 0;
+  private _tapTimer: ReturnType<typeof setTimeout> | null = null;
 
   private readonly _euler = new THREE.Euler(0, 0, 0, 'YXZ');
   private readonly _yawEuler = new THREE.Euler(0, 0, 0, 'YXZ');
@@ -79,6 +80,7 @@ export class Controls {
       document.removeEventListener('keyup', this.onKeyUp);
       this.canvas.removeEventListener('wheel', this.onWheel);
     }
+    if (this._tapTimer !== null) { clearTimeout(this._tapTimer); this._tapTimer = null; }
     this.keys.clear();
     this.canvas = null;
   }
@@ -136,8 +138,8 @@ export class Controls {
       const dy = t.clientY - this.lastTouchY;
       this.targetYaw   = null; // user took control — cancel programmatic pan
       this.targetPitch = null;
-      this.yaw   -= dx * LOOK_SENSITIVITY;
-      this.pitch -= dy * LOOK_SENSITIVITY;
+      this.yaw   += dx * LOOK_SENSITIVITY;
+      this.pitch += dy * LOOK_SENSITIVITY;
       this.pitch = Math.max(-PITCH_LIMIT, Math.min(PITCH_LIMIT, this.pitch));
       this.lastTouchX = t.clientX;
       this.lastTouchY = t.clientY;
@@ -175,13 +177,24 @@ export class Controls {
       const tapDist = Math.sqrt(ddx * ddx + ddy * ddy);
 
       if (since < 300 && tapDist < 30) {
+        // Cancel pending single-tap so it doesn't fire alongside double-tap
+        if (this._tapTimer !== null) {
+          clearTimeout(this._tapTimer);
+          this._tapTimer = null;
+        }
         this.onDoubleTap?.(t.clientX, t.clientY);
-        this.lastTapTime = 0; // reset so triple-tap doesn't re-fire
+        this.lastTapTime = 0;
       } else {
-        this.onTap?.(t.clientX, t.clientY);
-        this.lastTapX    = t.clientX;
-        this.lastTapY    = t.clientY;
+        // Delay single-tap to give a second tap a chance to cancel it
+        const tapX = t.clientX;
+        const tapY = t.clientY;
+        this.lastTapX    = tapX;
+        this.lastTapY    = tapY;
         this.lastTapTime = Date.now();
+        this._tapTimer = setTimeout(() => {
+          this._tapTimer = null;
+          this.onTap?.(tapX, tapY);
+        }, 300);
       }
     }
   };

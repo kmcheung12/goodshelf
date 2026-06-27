@@ -131,7 +131,7 @@
     {#if inspecting}
       <div class="hint">Tap anywhere to put it back · Move finger to rotate</div>
     {:else if phase === 'browsing'}
-      <div class="hint">Drag to look · Tap a book · Double-tap to inspect</div>
+      <div class="hint">Drag to look · Tap to inspect · Double-tap for details</div>
     {:else}
       <div class="hint">Drag to look around</div>
     {/if}

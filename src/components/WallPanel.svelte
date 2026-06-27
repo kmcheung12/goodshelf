@@ -27,6 +27,8 @@
   }
 
   $: displayError = localError || $wallPanelStore.error;
+
+  const isMobile = typeof window !== 'undefined' && 'ontouchstart' in window;
 </script>
 
 <div class="card">
@@ -60,11 +62,13 @@
   </p>
 </div>
 
+{#if !isMobile}
 <p class="controls-hint">
   <strong>mouse</strong> or <strong>WASD</strong> to look around &nbsp;·&nbsp;
   <strong>F</strong> to toggle shelf list &nbsp;·&nbsp;
   <strong>scroll</strong> to zoom
 </p>
+{/if}
 
 <style>
   .card {
